@@ -1,6 +1,7 @@
 #ifndef NUMERICAL_MESH_LIB_H
 #define NUMERICAL_MESH_LIB_H
 #include <array>
+#include <vector>
 #include <cmath>
 #include <algorithm>
 #include <type_traits>
@@ -75,12 +76,13 @@ protected:
     }
 
     Arr alpha_m, beta_m, gamma_m;
+    std::array<size_t, Dim> N_m;
     Mesh_base() = default;
 
 public:
     virtual ~Mesh_base() = default;
-    Mesh_base(const Arr alpha, const Arr beta, const Arr gamma)
-     : alpha_m(alpha), beta_m(beta), gamma_m(gamma)
+    Mesh_base(const Arr alpha, const Arr beta, const Arr gamma, const std::array<size_t, Dim>& N)
+     : alpha_m(alpha), beta_m(beta), gamma_m(gamma), N_m(N)
     {}
 
     Mesh_base(const Mesh_base&) = default;
@@ -96,18 +98,24 @@ public:
     virtual Arr dr(const Arr& x) const = 0;
 
     Arr operator()(const Arr& x) const {return r(x);}
+
+
+    std::array<std::vector<Scalar>, Dim> r() const;
+
+    std::array<size_t, Dim> dim() const {return N_m;}
 };
 
 template<class Scalar>
 class Mesh_base<1, Scalar> {
 protected:
     Scalar alpha_m, beta_m, gamma_m;
+    size_t N_m;
     Mesh_base() = default;
 
 public:
     virtual ~Mesh_base() = default;
-    Mesh_base(const Scalar alpha, const Scalar beta, const Scalar gamma)
-     : alpha_m(alpha), beta_m(beta), gamma_m(gamma)
+    Mesh_base(const Scalar alpha, const Scalar beta, const Scalar gamma, const size_t N)
+     : alpha_m(alpha), beta_m(beta), gamma_m(gamma), N_m(N)
     {}
 
     Mesh_base(const Mesh_base&) = default;
@@ -120,6 +128,16 @@ public:
     virtual Scalar r2(const Scalar& x) const = 0;
     virtual Scalar dr(const Scalar& x) const = 0;
     Scalar operator()(const Scalar& x) const {return r(x);}
+
+    std::vector<Scalar> r() const
+    {
+        std::vector<Scalar> res;
+        for(size_t i = 0; i < this->N_m; i++){
+            res.push_back(this->r(i));
+        }
+    }
+
+    size_t dim() const {return N_m;}
 };
 
 template<size_t D, class Scalar = double>
@@ -143,11 +161,7 @@ public:
                 });
                 return res;
             }(R_min, R_max, N)
-        , Arr(), R_min)
-    {}
-
-    Linear_mesh(const Arr R_min, const Arr alpha)
-     : Mesh_base<D, Scalar>(alpha, 0, R_min)
+        , Arr(), R_min, N)
     {}
 
     ~Linear_mesh() = default;
@@ -192,11 +206,7 @@ private:
 
 public:
     Linear_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
-    : Mesh_base<1, Scalar>((R_max - R_min)/N, 0, R_min )
-    {}
-
-    Linear_mesh(const Scalar R_min, const Scalar alpha)
-     : Mesh_base<1, Scalar>(alpha, 0, R_min)
+    : Mesh_base<1, Scalar>((R_max - R_min)/N, 0, R_min, N)
     {}
 
     ~Linear_mesh() = default;
@@ -242,11 +252,7 @@ public:
                 });
             return res;
         }(R_min, R_max, N)
-        , Arr(), R_min )
-    {}
-
-    Quadratic_mesh(const Arr R_min, const Arr alpha)
-     : Mesh_base<D, Scalar>(alpha, 0, R_min)
+        , Arr(), R_min, N )
     {}
 
     ~Quadratic_mesh() = default;
@@ -294,11 +300,7 @@ class Quadratic_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
     Quadratic_mesh() = delete;
     Quadratic_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
-    : Mesh_base<1, Scalar>((R_max - R_min)/std::pow(N, 2), 0, R_min )
-    {}
-
-    Quadratic_mesh(const Scalar R_min, const Scalar alpha)
-     : Mesh_base<1, Scalar>(alpha, 0, R_min)
+    : Mesh_base<1, Scalar>((R_max - R_min)/std::pow(N, 2), 0, R_min, N )
     {}
 
     ~Quadratic_mesh() = default;
@@ -342,11 +344,7 @@ public:
                     return (r2 - r1)/(std::exp(b*n) - 1);
                 });
             return res;
-        }(R_min, R_max, beta, N), beta, R_min)
-    {}
-
-    Exponential_mesh(const Arr R_min, const Arr alpha, const Arr beta)
-     : Mesh_base<D, Scalar>(alpha, beta, R_min)
+        }(R_min, R_max, beta, N), beta, R_min, N)
     {}
 
     ~Exponential_mesh() = default;
@@ -394,11 +392,7 @@ class Exponential_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
     Exponential_mesh() = delete;
     Exponential_mesh(const Scalar R_min, const Scalar R_max, const Scalar beta, const size_t N)
-    : Mesh_base<1, Scalar>((R_max - R_min)/(std::exp(beta*N) - 1), beta, R_min)
-    {}
-
-    Exponential_mesh(const Scalar R_min, const Scalar alpha, const Scalar beta)
-     : Mesh_base<1, Scalar>(alpha, beta, R_min)
+    : Mesh_base<1, Scalar>((R_max - R_min)/(std::exp(beta*N) - 1), beta, R_min, N)
     {}
 
     ~Exponential_mesh() = default;

@@ -103,6 +103,7 @@ public:
     std::array<std::vector<Scalar>, Dim> r() const;
 
     std::array<size_t, Dim> dim() const {return N_m;}
+
 };
 
 template<class Scalar>
@@ -129,12 +130,51 @@ public:
     virtual Scalar dr(const Scalar& x) const = 0;
     Scalar operator()(const Scalar& x) const {return r(x);}
 
-    std::vector<Scalar> r() const
+    virtual std::vector<Scalar> r() const
     {
         std::vector<Scalar> res;
         for(size_t i = 0; i < this->N_m; i++){
             res.push_back(this->r(i));
         }
+        return res;
+    }
+
+    virtual std::vector<Scalar> r2() const
+    {
+        std::vector<Scalar> res;
+        for(size_t i = 0; i < this->N_m; i++){
+            res.push_back(this->r2(i));
+        }
+        return res;
+    }
+
+    virtual std::vector<Scalar> dr() const
+    {
+        std::vector<Scalar> res;
+        for(size_t i = 0; i < this->N_m; i++){
+            res.push_back(this->dr(i));
+        }
+        return res;
+    }
+
+    template<class Func>
+    std::vector<Scalar> evaluate(Func f, size_t h = 1)
+    {
+        std::vector<Scalar> res;
+        for(size_t i = 0; i < this->N_m; i += h){
+            res.push_back(f(this->r(i)));
+        }
+        return res;
+    }
+
+    template<class Func>
+    std::vector<Scalar> evaluate(Func f, Scalar x0, Scalar x1, Scalar h)
+    {
+        std::vector<Scalar> res;
+        for(Scalar x = x0; x <= x1; x += h){
+            res.push_back(f(this->r(x)));
+        }
+        return res;
     }
 
     size_t dim() const {return N_m;}
@@ -157,7 +197,7 @@ public:
                 [] (std::tuple<Scalar, Scalar, size_t> ti)
                 {
                     auto [r1, r2, n] = ti;
-                    return (r2 - r1)/n;
+                    return (r2 - r1)/(n - 1);
                 });
                 return res;
             }(R_min, R_max, N)
@@ -206,7 +246,7 @@ private:
 
 public:
     Linear_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
-    : Mesh_base<1, Scalar>((R_max - R_min)/N, 0, R_min, N)
+    : Mesh_base<1, Scalar>((R_max - R_min)/(N - 1), 0, R_min, N)
     {}
 
     ~Linear_mesh() = default;
@@ -216,6 +256,10 @@ public:
 
     Linear_mesh& operator=(const Linear_mesh&) = default;
     Linear_mesh& operator=(Linear_mesh&&) = default;
+
+    using Mesh_base<1, Scalar>::r;
+    using Mesh_base<1, Scalar>::r2;
+    using Mesh_base<1, Scalar>::dr;
 
     Scalar r(const Scalar& x) const override
     {
@@ -248,7 +292,7 @@ public:
                 [] (const std::tuple<Scalar, Scalar, size_t>& ti)
                 {
                     auto [r1, r2, n] = ti;
-                    return (r2-r1)/std::pow(n, 2);
+                    return (r2-r1)/std::pow(n - 1, 2);
                 });
             return res;
         }(R_min, R_max, N)
@@ -300,7 +344,7 @@ class Quadratic_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
     Quadratic_mesh() = delete;
     Quadratic_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
-    : Mesh_base<1, Scalar>((R_max - R_min)/std::pow(N, 2), 0, R_min, N )
+    : Mesh_base<1, Scalar>((R_max - R_min)/std::pow(N - 1, 2), 0, R_min, N )
     {}
 
     ~Quadratic_mesh() = default;
@@ -341,7 +385,7 @@ public:
                 [] (const std::tuple<Scalar, Scalar, Scalar, size_t> ti)
                 {
                     auto [r1, r2, b, n] = ti;
-                    return (r2 - r1)/(std::exp(b*n) - 1);
+                    return (r2 - r1)/(std::exp(b*(n - 1)) - 1);
                 });
             return res;
         }(R_min, R_max, beta, N), beta, R_min, N)
@@ -376,12 +420,21 @@ public:
 
     Arr dr(const Arr& x) const override
     {
+        Arr x_abs;
+        std::transform(std::begin(x), std::end(x), std::begin(x_abs),
+            [] (const Scalar& xi)
+            {
+                return sgn(xi)*xi;
+            }
+        );
+        Arr r = this->r(x_abs);
+
         Arr res;
-        std::transform(std::begin(x), std::end(x), std::begin(this->parameters()), std::begin(res),
-            [] (const Scalar& xi, const std::tuple<Scalar, Scalar, Scalar>& ti)
+        std::transform(std::begin(r), std::end(r), std::begin(this->parameters()), std::begin(res),
+            [] (const Scalar& ri, const std::tuple<Scalar, Scalar, Scalar>& ti)
             {
                 auto [a, b, c] = ti;
-                return a*b*std::exp(sgn(xi)*b*xi) + c*0;
+                return b*(ri + a - c);
             });
         return res;
     }
@@ -392,7 +445,7 @@ class Exponential_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
     Exponential_mesh() = delete;
     Exponential_mesh(const Scalar R_min, const Scalar R_max, const Scalar beta, const size_t N)
-    : Mesh_base<1, Scalar>((R_max - R_min)/(std::exp(beta*N) - 1), beta, R_min, N)
+    : Mesh_base<1, Scalar>((R_max - R_min)/std::expm1(beta*(N-1)), beta, R_min, N)
     {}
 
     ~Exponential_mesh() = default;
@@ -406,7 +459,7 @@ public:
     Scalar r(const Scalar& x) const override
     {
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
-        return sgn(x)*a*(std::exp(sgn(x)*b*x) - 1) + c;
+        return sgn(x)*a*std::expm1(sgn(x)*b*x) + c;
     }
 
     Scalar r2(const Scalar& x) const override
@@ -416,8 +469,8 @@ public:
 
     Scalar dr(const Scalar& x) const override
     {
-        Scalar a = this->alpha_m, b = this->beta_m;
-        return a*b*std::exp(sgn(x)*b*x);
+        Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
+        return b*(this->r(sgn(x)*x) + a - c);
     }
 };
 

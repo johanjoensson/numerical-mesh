@@ -5,7 +5,7 @@
 
 TEST(LinearMesh, TestLinear1D)
 {
-    Linear_mesh<1, double> m(1., 6., 10);
+    Linear_mesh<1, double> m(1., 6., 11);
     ASSERT_DOUBLE_EQ(m.r(10), 6.) << "r(10) = 0.5*10 + 1 != 6.";
     ASSERT_DOUBLE_EQ(m.r(-10), -4.) << "r(-10) = 0.5*(-10) + 1 != -4.";
     ASSERT_DOUBLE_EQ(m.r2(10), 36.) << "r^2(10) = (0.5*10 + 1)^2 != 36.";
@@ -18,7 +18,7 @@ TEST(LinearMesh, TestLinear1D)
 
 TEST(QuadraticMesh, TestQuadratic1D)
 {
-    Quadratic_mesh<1, double> m(1., 6., 10);
+    Quadratic_mesh<1, double> m(1., 6., 11);
     ASSERT_DOUBLE_EQ(m.r(10), 6.) << "r(10) = 0.05*10^2 + 1 != 6.";
     ASSERT_DOUBLE_EQ(m.r(-10), -4.) << "r(-10) = -0.05*10^2 + 1 != -4.";
     ASSERT_DOUBLE_EQ(m.r2(10), 36.) << "r^2(10) = (0.05*10^2 + 1)^2 != 36.";
@@ -31,7 +31,7 @@ TEST(QuadraticMesh, TestQuadratic1D)
 
 TEST(ExponentialMesh, TestExponential1D)
 {
-    Exponential_mesh<1, double> m(1., 6., 0.02, 10);
+    Exponential_mesh<1, double> m(1., 6., 0.02, 11);
     ASSERT_DOUBLE_EQ(m.r(10), 6.) << "r(10) = 0.02*(e^(0.02*10) - 1) + 1 != 6.";
     ASSERT_DOUBLE_EQ(m.r(-10), -4.) << "r(-10) = -0.02*(e^(0.02*10) - 1) + 1 != -4.";
     ASSERT_NEAR(m.r2(10), 36., TOL) << "r^2(10) = (0.02*(e^(0.02*10) - 1) + 1)^2 != 36.";
@@ -43,7 +43,7 @@ TEST(ExponentialMesh, TestExponential1D)
 
 TEST(LinearMesh, TestLinear5D)
 {
-    Linear_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {10, 10, 10, 10, 10});
+    Linear_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {11, 11, 11, 11, 11});
 
     std::ranges::for_each(m.r({10., 10., 10., 10., 10.}),
         [] (const double ri)
@@ -85,7 +85,7 @@ TEST(LinearMesh, TestLinear5D)
 
 TEST(QuadraticMesh, TestQuadratic5D)
 {
-    Quadratic_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {10, 10, 10, 10, 10});
+    Quadratic_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {11, 11, 11, 11, 11});
 
     std::ranges::for_each(m.r({10., 10., 10., 10., 10.}),
         [] (const double ri)
@@ -126,7 +126,7 @@ TEST(QuadraticMesh, TestQuadratic5D)
 
 TEST(ExponentialMesh, TestExponential5D)
 {
-    Exponential_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {0.02, 0.02, 0.02, 0.02, 0.02}, {10, 10, 10, 10, 10});
+    Exponential_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {0.02, 0.02, 0.02, 0.02, 0.02}, {11, 11, 11, 11, 11});
 
     std::ranges::for_each(m.r({10., 10., 10., 10., 10.}),
         [] (const double ri)
@@ -163,4 +163,27 @@ TEST(ExponentialMesh, TestExponential5D)
         {
             ASSERT_DOUBLE_EQ(ri, -4.) << "r(-10) = 0.5*(-10) + 1 != -4.";
         });
+}
+
+TEST(MeshTest, TestEvaluate1D)
+{
+    auto func = [] (const double r)
+    {
+        return std::sin(2*M_PI*r);
+    };
+    Linear_mesh<1, double> ml(0, 1, 101);
+    Quadratic_mesh<1, double> mq(0, 1, 101);
+    Exponential_mesh<1, double> me(0, 1, 0.02, 101);
+    auto linear_res = ml.evaluate(func);
+    auto quadratic_res = mq.evaluate(func);
+    auto exponential_res = me.evaluate(func);
+
+    ASSERT_NEAR(linear_res.front(), 0, TOL);
+    ASSERT_NEAR(quadratic_res.front(), 0, TOL);
+    ASSERT_NEAR(exponential_res.front(), 0, TOL);
+
+    ASSERT_NEAR(linear_res.back(), 0, TOL);
+    ASSERT_NEAR(quadratic_res.back(), 0, TOL);
+    ASSERT_NEAR(exponential_res.back(), 0, TOL);
+
 }

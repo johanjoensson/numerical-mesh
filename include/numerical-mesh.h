@@ -288,10 +288,14 @@ public:
         std::transform(std::begin(z4), std::end(z4), std::begin(res),
         [] (const std::tuple<Scalar, Scalar, Scalar, Scalar> ti)
         {
+#if __cplusplus >= 201703L
+            auto [xi, ai, bi, ci] = ti;
+#else
             auto xi = std::get<0>(ti);
             auto ai = std::get<1>(ti);
             auto bi = std::get<2>(ti);
             auto ci = std::get<3>(ti);
+#endif
             return ai*xi +0*bi + ci;
         });
 #endif
@@ -401,10 +405,14 @@ public:
         std::transform(std::begin(z4), std::end(z4), std::begin(res),
             [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
             {
+#if __cplusplus >= 201703L
+                auto [xi, a, b, c] = ti;
+#else
                 auto xi = std::get<0>(ti);
                 auto a = std::get<1>(ti);
                 auto b = std::get<2>(ti);
                 auto c = std::get<3>(ti);
+#endif
                 return sgn(xi)*a*std::pow(xi, 2) + c;
             });
 #endif
@@ -433,10 +441,14 @@ public:
         std::transform(std::begin(z4), std::end(z4), std::begin(res),
             [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
             {
+#if __cplusplus >= 201703L
+                auto [xi, a, b, c] = ti;
+#else
                 auto xi = std::get<0>(ti);
                 auto a = std::get<1>(ti);
                 auto b = std::get<2>(ti);
                 auto c = std::get<3>(ti);
+#endif
                 return sgn(xi)*2*a*xi + b*0 + c*0;
             });
 #endif
@@ -526,10 +538,14 @@ public:
         std::transform(std::begin(z4), std::end(z4), std::begin(res),
             [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
             {
+#if __cplusplus >= 201703L
+                auto [xi, a, b, c] = ti;
+#else
                 auto xi = std::get<0>(ti);
                 auto a = std::get<1>(ti);
                 auto b = std::get<2>(ti);
                 auto c = std::get<3>(ti);
+#endif
                 return sgn(xi)*a*(std::exp(sgn(xi)*xi*b) - 1) + c;
             });
 #endif
@@ -567,10 +583,14 @@ public:
         std::transform(std::begin(z4), std::end(z4), std::begin(res),
             [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
             {
+#if __cplusplus >= 201703L
+                auto [ri, a, b, c] = ti;
+#else
                 auto ri = std::get<0>(ti);
                 auto a = std::get<1>(ti);
                 auto b = std::get<2>(ti);
                 auto c = std::get<3>(ti);
+#endif
                 return b*(ri + a - c);
             });
 #endif

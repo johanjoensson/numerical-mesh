@@ -1,8 +1,7 @@
-#include "numerical-mesh.h"
-#include "numerical-mesh-integration.h"
+#include <numerical-mesh-integration.h>
 #include <gtest/gtest.h>
 
-#define TOL 1e-16
+#define TOL 5e-16
 
 TEST(LinearTrapz, TestLinearTrapz1D)
 {

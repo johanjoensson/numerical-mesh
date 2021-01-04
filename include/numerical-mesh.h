@@ -1,5 +1,10 @@
 #ifndef NUMERICAL_MESH_LIB_H
 #define NUMERICAL_MESH_LIB_H
+
+#if __cplusplus < 201103L // Require at least c++11
+#error The numerical-mesh library requires at least c++11!
+#endif
+
 #include <array>
 #include <vector>
 #include <cmath>
@@ -7,6 +12,21 @@
 #include <type_traits>
 #include <tuple>
 #include <iostream>
+
+/*******************************************************************************
+* The __cplusplus macro is used to determine which c++ standard is used for the*
+* compilation. This is "needed" because I want to use this library in projects *
+* using c++11 as well as projects using c++20. This means parts of the code had*
+* to be rewritten in order to enable the cool c++20 features only if c++20 is  *
+* used. As a side effect this also made it possible to write code for c++17 as *
+* well.                                                                        *
+* Features requiring c++17:                                                    *
+*  -- structured bindings i.e., auto [a,b,c,...] = ...                         *
+* Features requiring c++20:                                                    *
+*  -- Concepts e.g., integral and floating_point                               *
+*  -- ranges-versions of algorithms                                            *
+*  -- std::transform with 2 input containers                                   *
+*******************************************************************************/
 
 #if __cplusplus >= 202002L
 concept arithmetic = std::integral || std::floating_point
@@ -160,7 +180,11 @@ public:
 
 };
 
+#if __cplusplus >= 202002L
+template<floating_point Scalar>
+#else
 template<class Scalar>
+#endif
 class Mesh_base<1, Scalar> {
 protected:
     Scalar alpha_m, beta_m, gamma_m;
@@ -232,6 +256,98 @@ public:
     }
 
     size_t dim() const {return N_m;}
+
+    class iterator{
+    private:
+        const Mesh_base& m_m;
+        Scalar i_m;
+    public:
+        typedef std::random_access_iterator_tag iterator_category;
+        iterator() = delete;
+        iterator(const iterator&) = default;
+        iterator(iterator&&) = default;
+        iterator(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i){}
+        ~iterator() = default;
+        iterator& operator=(const iterator&) = default;
+        iterator& operator=(iterator&&) = default;
+
+        Scalar operator*(){return m_m.r(i_m);}
+
+        bool operator==(const iterator& b)const{return i_m == b.i_m;}
+        bool operator!=(const iterator& b)const{return !(*this == b);}
+        bool operator>=(const iterator& b)const{return i_m >= b.i_m;}
+        bool operator<=(const iterator& b)const{return i_m <= b.i_m;}
+        bool operator>(const iterator& b)const{return !(*this <= b);}
+        bool operator<(const iterator& b)const{return !(*this >= b);}
+
+        iterator operator++(int){auto res = *this; i_m++; return res;}
+        iterator& operator++(){i_m++; return *this;}
+        iterator operator--(int){auto res = *this; i_m--; return res;}
+        iterator& operator--(){i_m--; return *this;}
+
+        iterator& operator+=(const size_t n){i_m += n; return *this;}
+        iterator& operator-=(const size_t n){i_m -= n; return *this;}
+
+        iterator operator+(const size_t n)const{auto res = *this; return (res += n);}
+        iterator operator-(const size_t n)const{auto res = *this; return (res -= n);}
+        size_t operator-(const iterator& it)const{return this->i_m - it.i_m;}
+
+        Scalar operator[](const size_t n)const{return m_m.r(n);}
+    };
+    class const_iterator{
+    private:
+        const Mesh_base& m_m;
+        Scalar i_m;
+    public:
+        typedef std::random_access_iterator_tag iterator_category;
+        const_iterator() = delete;
+        const_iterator(const const_iterator&) = default;
+        const_iterator(const_iterator&&) = default;
+        const_iterator(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i){}
+        ~const_iterator() = default;
+        const_iterator& operator=(const const_iterator&) = default;
+        const_iterator& operator=(const_iterator&&) = default;
+
+        Scalar operator*(){return m_m.r(i_m);}
+
+        bool operator==(const const_iterator& b)const{return i_m == b.i_m;}
+        bool operator!=(const const_iterator& b)const{return !(*this == b);}
+        bool operator>=(const const_iterator& b)const{return i_m >= b.i_m;}
+        bool operator<=(const const_iterator& b)const{return i_m <= b.i_m;}
+        bool operator>(const const_iterator& b)const{return !(*this <= b);}
+        bool operator<(const const_iterator& b)const{return !(*this >= b);}
+
+        const_iterator operator++(int){auto res = *this; i_m++; return res;}
+        const_iterator& operator++(){i_m++; return *this;}
+        const_iterator operator--(int){auto res = *this; i_m--; return res;}
+        const_iterator& operator--(){i_m--; return *this;}
+
+        const_iterator& operator+=(const size_t n){i_m += n; return *this;}
+        const_iterator& operator-=(const size_t n){i_m -= n; return *this;}
+
+        const_iterator operator+(const size_t n)const{auto res = *this; return (res += n);}
+        const_iterator operator-(const size_t n)const{auto res = *this; return (res -= n);}
+        size_t operator-(const const_iterator& it)const{return this->i_m - it.i_m;}
+
+        const Scalar operator[](const size_t n)const{return m_m.r(n);}
+    };
+
+    typedef std::reverse_iterator<iterator> reverse_iterator;
+    typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+    iterator begin(){return iterator(*this, 0);}
+    const_iterator begin() const {return const_iterator(*this, 0);}
+    const_iterator cbegin() const {return const_iterator(*this, 0);}
+    iterator end(){return iterator(*this, N_m);}
+    const_iterator end() const {return const_iterator(*this, N_m);}
+    const_iterator cend() const {return const_iterator(*this, N_m);}
+
+    reverse_iterator rbegin(){return reverse_iterator(this->begin());}
+    const_reverse_iterator rbegin() const {return const_reverse_iterator(this->begin());}
+    const_reverse_iterator crbegin() const {return const_reverse_iterator(this->begin());}
+    reverse_iterator rend(){return reverse_iterator(this->end());}
+    const_reverse_iterator rend() const {return const_reverse_iterator(this->end());}
+    const_reverse_iterator crend() const {return const_reverse_iterator(this->cend());}
 };
 
 template<size_t D, class Scalar = double>

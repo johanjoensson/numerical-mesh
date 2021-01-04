@@ -4,7 +4,11 @@
 #include <functional>
 #include <type_traits>
 
-template<class Scalar> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar>
+#else
+template<class Scalar>
+#endif
 Scalar trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
     const Scalar& x1, const Scalar& h, const std::function<Scalar(const Scalar&)>& integrand)
 {
@@ -18,14 +22,22 @@ Scalar trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
     return res*h/2;
 }
 
-template<class Scalar> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar>
+#else
+template<class Scalar>
+#endif
 Scalar trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const std::function<Scalar(const Scalar&)>& integrand)
 {
     return trapezoidal_integral(mesh, 0., static_cast<Scalar>(mesh.dim() - 1), 1., integrand);
 }
 
 
-template<class Scalar> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar>
+#else
+template<class Scalar>
+#endif
 Scalar simpson_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
     const Scalar& x1, const Scalar& h, const std::function<Scalar(const Scalar&)>& integrand)
 {
@@ -40,19 +52,31 @@ Scalar simpson_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
     return res*h/3;
 }
 
-template<class Scalar> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar>
+#else
+template<class Scalar>
+#endif
 Scalar simpson_integral(const Mesh_base<1, Scalar>& mesh, const std::function<Scalar(const Scalar&)>& integrand)
 {
     return simpson_integral(mesh, 0., static_cast<Scalar>(mesh.dim() - 1), 1., integrand);
 }
 
-template<class Scalar, size_t K> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar, size_t K = 3>
+#else
+template<class Scalar, size_t K = 3>
+#endif
 std::array<Scalar, K> end_point_corrections()
 {
     return {9./24, 28./24, 23./24};
 }
 
-template<class Scalar, size_t K = 3> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar, size_t K = 3>
+#else
+template<class Scalar, size_t K = 3>
+#endif
 Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
     const Scalar& x1, const Scalar& h, const std::function<Scalar(const Scalar&)>& integrand)
 {
@@ -73,7 +97,11 @@ Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Sc
     return res*h;
 }
 
-template<class Scalar, size_t K = 3> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<std::floating_point Scalar, size_t K = 3>
+#else
+template<class Scalar, size_t K = 3>
+#endif
 Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const std::function<Scalar(const Scalar&)>& integrand)
 {
     return corrected_trapezoidal_integral(mesh, 0., static_cast<Scalar>(mesh.dim() - 1), 1., integrand);

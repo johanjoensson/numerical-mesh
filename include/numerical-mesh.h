@@ -8,50 +8,82 @@
 #include <tuple>
 #include <iostream>
 
+#if __cplusplus >= 202002L
+concept arithmetic = std::integral || std::floating_point
+#endif
+
 namespace{
-    template <typename T> requires std::is_arithmetic<T>::value
+#if __cplusplus >= 202002L
+    template<arithmetic T>
+#else
+    template<typename T>
+#endif
     constexpr int sgn(T val)
     {
     return (T(0) < val) - (val < T(0));
     }
 }
 
-template<size_t Dim, class Scalar = double> requires std::is_floating_point<Scalar>::value
+#if __cplusplus >= 202002L
+template<size_t Dim, floating_point Scalar = double>
+#else
+template<size_t Dim, class Scalar = double>
+#endif
 class Mesh_base {
     using Arr = std::array<Scalar, Dim>;
 
 protected:
     template<class A, class B>
-    auto zip2 (const std::array<A, Dim>& a, const std::array<B, Dim>& b) const
+    std::array<std::tuple<A, B>, Dim> zip2 (const std::array<A, Dim>& a, const std::array<B, Dim>& b) const
     {
         std::array<std::tuple<A, B>, Dim> res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(a), std::end(a), std::begin(b), std::begin(res),
             [](const A& ai, const B& bi)
             {
                 return std::tuple<A, B>(ai, bi);
             });
+#else
+        auto ai = a.begin();
+        auto bi = b.begin();
+        auto ri = res.begin();
+        for(;ai != a.end(); ai++, bi++, ri++){
+            *ri = {*ai, *bi};
+        }
+#endif
             return res;
     }
 
     template<class A, class B, class C>
-    auto zip3 (const std::array<A, Dim>& a, const std::array<B, Dim>& b, std::array<C, Dim> c) const
+    std::array<std::tuple<A, B, C>, Dim> zip3(const std::array<A, Dim>& a, const std::array<B, Dim>& b, std::array<C, Dim> c) const
     {
         auto tmp = zip2(b, c);
         std::array<std::tuple<A, B, C>, Dim> res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(a), std::end(a), std::begin(tmp), std::begin(res),
             [] (const Scalar ai, const std::tuple<B, C> ti)
             {
                 auto [bi, ci] = ti;
                 return std::tuple<A, B, C>(ai, bi, ci);
             });
+#else
+        auto ai = a.begin();
+        auto bi = b.begin();
+        auto ci = c.begin();
+        auto ri = res.begin();
+        for(;ai != a.end(); ai++, bi++, ci++, ri++){
+            *ri = {*ai, *bi, *ci};
+        }
+#endif
         return res;
     }
 
     template<class A, class B, class C, class D>
-    auto zip4 (const std::array<A, Dim>& a, const std::array<B, Dim>& b, const std::array<C, Dim>& c, const std::array<D, Dim>& d) const
+    std::array<std::tuple<A, B, C, D>, Dim> zip4 (const std::array<A, Dim>& a, const std::array<B, Dim>& b, const std::array<C, Dim>& c, const std::array<D, Dim>& d) const
     {
         auto z1 = zip2(a, b), z2 = zip2(c, d);
         std::array<std::tuple<A, B, C, D>, Dim> res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(z1), std::end(z1), std::begin(z2), std::begin(res),
         [] (const std::tuple<A, B> ti, const std::tuple<C, D> ui)
         {
@@ -59,19 +91,41 @@ protected:
             auto [ci, di] = ui;
             return std::tuple<A, B, C, D>(ai, bi, ci, di);
         });
+#else
+        auto ai = a.begin();
+        auto bi = b.begin();
+        auto ci = c.begin();
+        auto di = d.begin();
+        auto ri = res.begin();
+        for(;ai != a.end(); ai++, bi++, ci++, di++, ri++){
+            *ri = {*ai, *bi, *ci, *di};
+        }
+#endif
         return res;
     }
 
     template<class A, class B, class C, class D>
-    auto zip4 (const std::array<A, Dim>& a, const std::array<std::tuple<B, C, D>, Dim>& t) const
+    std::array<std::tuple<A, B, C, D>, Dim> zip4 (const std::array<A, Dim>& a, const std::array<std::tuple<B, C, D>, Dim>& t) const
     {
         std::array<std::tuple<A, B, C, D>, Dim> res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(a), std::end(a), std::begin(t), std::begin(res),
         [] (const A ai, const std::tuple<B, C, D> ti)
         {
             auto [bi, ci, di] = ti;
             return std::tuple<A, B, C, D>(ai, bi, ci, di);
         });
+#else
+        auto ai = a.begin();
+        auto ti = t.begin();
+        auto ri = res.begin();
+        for(;ai != a.end(); ai++, ti++, ri++){
+            auto bi = std::get<0>(*ti);
+            auto ci = std::get<1>(*ti);
+            auto di = std::get<2>(*ti);
+            *ri = {*ai, bi, ci, di};
+        }
+#endif
         return res;
     }
 
@@ -196,7 +250,13 @@ public:
             std::transform(std::begin(z3), std::end(z3), std::begin(res),
                 [] (std::tuple<Scalar, Scalar, size_t> ti)
                 {
+#if __cplusplus >= 201703L
                     auto [r1, r2, n] = ti;
+#else
+                    auto r1 = std::get<0>(ti);
+                    auto r2 = std::get<1>(ti);
+                    auto n = std::get<2>(ti);
+#endif
                     return (r2 - r1)/(n - 1);
                 });
                 return res;
@@ -216,12 +276,25 @@ public:
     {
         Arr res;
 
+#if __cplusplus >= 202002L
         std::transform(std::begin(x), std::end(x), std::begin(this->parameters()), std::begin(res),
         [] (const Scalar xi, const std::tuple<Scalar, Scalar, Scalar> ti)
         {
             auto [ai, bi, ci] = ti;
             return ai*xi +0*bi + ci;
         });
+#else
+        auto z4 = this->zip4(x, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+        [] (const std::tuple<Scalar, Scalar, Scalar, Scalar> ti)
+        {
+            auto xi = std::get<0>(ti);
+            auto ai = std::get<1>(ti);
+            auto bi = std::get<2>(ti);
+            auto ci = std::get<3>(ti);
+            return ai*xi +0*bi + ci;
+        });
+#endif
         return res;
     }
 
@@ -291,7 +364,13 @@ public:
             std::transform(std::begin(z3), std::end(z3), std::begin(res),
                 [] (const std::tuple<Scalar, Scalar, size_t>& ti)
                 {
+#if __cplusplus >= 201703L
                     auto [r1, r2, n] = ti;
+#else
+                    auto r1 = std::get<0>(ti);
+                    auto r2 = std::get<1>(ti);
+                    auto n = std::get<2>(ti);
+#endif
                     return (r2-r1)/std::pow(n - 1, 2);
                 });
             return res;
@@ -310,12 +389,25 @@ public:
     Arr r(const Arr& x) const override
     {
         Arr res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(x), std::end(x), std::begin(this->parameters()), std::begin(res),
             [] (const Scalar& xi, const std::tuple<Scalar, Scalar, Scalar>& ti)
             {
                 auto [a, b, c] = ti;
                 return sgn(xi)*a*std::pow(xi, 2) + c;
             });
+#else
+        auto z4 = this->zip4(x, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+            [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
+            {
+                auto xi = std::get<0>(ti);
+                auto a = std::get<1>(ti);
+                auto b = std::get<2>(ti);
+                auto c = std::get<3>(ti);
+                return sgn(xi)*a*std::pow(xi, 2) + c;
+            });
+#endif
         return res;
     }
 
@@ -329,12 +421,25 @@ public:
     Arr dr(const Arr& x) const override
     {
         Arr res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(x), std::end(x), std::begin(this->parameters()), std::begin(res),
             [] (const Scalar xi, const std::tuple<Scalar, Scalar, Scalar> ti)
             {
                 auto [a, b, c] = ti;
                 return sgn(xi)*2*a*xi + b*0 + c*0;
             });
+#else
+        auto z4 = this->zip4(x, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+            [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
+            {
+                auto xi = std::get<0>(ti);
+                auto a = std::get<1>(ti);
+                auto b = std::get<2>(ti);
+                auto c = std::get<3>(ti);
+                return sgn(xi)*2*a*xi + b*0 + c*0;
+            });
+#endif
         return res;
     }
 };
@@ -384,7 +489,14 @@ public:
             std::transform(std::begin(z4), std::end(z4), std::begin(res),
                 [] (const std::tuple<Scalar, Scalar, Scalar, size_t> ti)
                 {
+#if __cplusplus >= 201703L
                     auto [r1, r2, b, n] = ti;
+#else
+                    auto r1 = std::get<0>(ti);
+                    auto r2 = std::get<1>(ti);
+                    auto b = std::get<2>(ti);
+                    auto n = std::get<2>(ti);
+#endif
                     return (r2 - r1)/(std::exp(b*(n - 1)) - 1);
                 });
             return res;
@@ -402,12 +514,25 @@ public:
     Arr r(const Arr& x) const override
     {
         Arr res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(x), std::end(x), std::begin(this->parameters()), std::begin(res),
             [] (const Scalar& xi, const std::tuple<Scalar, Scalar, Scalar>& ti)
             {
                 auto [a, b, c] = ti;
                 return sgn(xi)*a*(std::exp(sgn(xi)*xi*b) - 1) + c;
             });
+#else
+        auto z4 = this->zip4(x, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+            [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
+            {
+                auto xi = std::get<0>(ti);
+                auto a = std::get<1>(ti);
+                auto b = std::get<2>(ti);
+                auto c = std::get<3>(ti);
+                return sgn(xi)*a*(std::exp(sgn(xi)*xi*b) - 1) + c;
+            });
+#endif
         return res;
     }
 
@@ -430,12 +555,25 @@ public:
         Arr r = this->r(x_abs);
 
         Arr res;
+#if __cplusplus >= 202002L
         std::transform(std::begin(r), std::end(r), std::begin(this->parameters()), std::begin(res),
             [] (const Scalar& ri, const std::tuple<Scalar, Scalar, Scalar>& ti)
             {
                 auto [a, b, c] = ti;
                 return b*(ri + a - c);
             });
+#else
+        auto z4 = this->zip4(r, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+            [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
+            {
+                auto ri = std::get<0>(ti);
+                auto a = std::get<1>(ti);
+                auto b = std::get<2>(ti);
+                auto c = std::get<3>(ti);
+                return b*(ri + a - c);
+            });
+#endif
         return res;
     }
 };

@@ -3,9 +3,17 @@ cmake_minimum_required(VERSION 3.14)
 project(
 	Numerical-mesh
 	VERSION 0.1
-	DESCRIPTION "Template library for numerical meshes"
+	DESCRIPTION "C++ template library for numerical meshes"
 	LANGUAGES CXX
 )
+
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+
+add_library(numerical-mesh-lib INTERFACE)
+target_compile_features(numerical-mesh-lib INTERFACE cxx_std_20)
+
+
+target_include_directories(numerical-mesh-lib INTERFACE include/)
 
 # Only do these if this is the main project, and not if it is included through add_subdirectory
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -28,13 +36,6 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 			-Wlogical-op -Wuseless-cast)
 	endif()
 endif() # Main project only part ends here
-
-
-add_library(numerical-mesh-lib INTERFACE)
-target_compile_features(numerical-mesh-lib INTERFACE cxx_std_20)
-
-
-target_include_directories(numerical-mesh-lib INTERFACE include/)
 
 # IDEs should put the headers in a nice place
 source_group(

@@ -28,6 +28,10 @@
 *  -- std::transform with 2 input containers                                   *
 *******************************************************************************/
 
+/*******************************************************************************
+* The arithmetic concept, integral or floating point, is used to signify any
+* numeric type.
+*******************************************************************************/
 #if __cplusplus >= 202002L
 concept arithmetic = std::integral || std::floating_point
 #endif
@@ -44,6 +48,14 @@ namespace{
     }
 }
 
+/*******************************************************************************
+* Base class for all numerical mesh classes. All meshes can be described by
+* (max) three parameters and the number of mesh points (including endpoints).
+* @param alpha First parameter for the mesh.
+* @param beta Second parameter for the mesh.
+* @param gamma Third parameter for the mesh.
+* @param N Number of mesh points in the mesh (including endpoints).
+*******************************************************************************/
 #if __cplusplus >= 202002L
 template<size_t Dim, floating_point Scalar = double>
 #else
@@ -173,13 +185,20 @@ public:
 
     Arr operator()(const Arr& x) const {return r(x);}
 
-
     std::array<std::vector<Scalar>, Dim> r() const;
 
     std::array<size_t, Dim> dim() const {return N_m;}
 
 };
 
+/*******************************************************************************
+* 1D template specialization, instead of using 1D-arrays we can use the vales
+* directly.
+* @param alpha First parameter for the mesh.
+* @param beta Second parameter for the mesh.
+* @param gamma Third parameter for the mesh.
+* @param N Number of mesh points in the mesh (including endpoints).
+*******************************************************************************/
 #if __cplusplus >= 202002L
 template<floating_point Scalar>
 #else
@@ -350,6 +369,16 @@ public:
     const_reverse_iterator crend() const {return const_reverse_iterator(this->cend());}
 };
 
+/*******************************************************************************
+* Linear mesh in arbitrary dimensions.
+* @param R_min Array containing the lower end points for the mesh.
+* @param R_max Array containing the upper end points for the mesh.
+* @param N Array containing the number of mesh points along the different
+*          dimensions of the mesh.
+* @param alpha Array containing the step sizes along the different dimensions.
+* @param beta Not used in a linear mesh.
+* @param gamma R_min
+*******************************************************************************/
 template<size_t D, class Scalar = double>
 class Linear_mesh : public Mesh_base<D, Scalar> {
 private:
@@ -432,6 +461,15 @@ public:
     }
 };
 
+/*******************************************************************************
+* Linear mesh in one dimension, r = alpha*x + gamma.
+* @param R_min Lower end point for the mesh.
+* @param R_max Upper end point for the mesh.
+* @param N Number of mesh points along the mesh.
+* @param alpha Step size.
+* @param beta Not used in a linear mesh.
+* @param gamma R_min
+*******************************************************************************/
 template<class Scalar>
 class Linear_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 private:
@@ -470,6 +508,16 @@ public:
     }
 };
 
+/*******************************************************************************
+* Quadratic mesh in arbitrary dimensions, r_i = alpha_i*x_i*x_i + gamma_i.
+* @param R_min Array containing the lower end points for the mesh.
+* @param R_max Array containing the upper end points for the mesh.
+* @param N Array containing the number of mesh points along the different
+*          dimensions of the mesh.
+* @param alpha Array containing the first mesh parameter for each dimension.
+* @param beta Not used in a quadratic mesh.
+* @param gamma R_min
+*******************************************************************************/
 template<size_t D, class Scalar = double>
 class Quadratic_mesh : public Mesh_base<D, Scalar> {
 public:
@@ -572,6 +620,15 @@ public:
     }
 };
 
+/*******************************************************************************
+* Quadratic mesh in one dimension, r = alpha*x*x + gamma.
+* @param R_min Lower end point for the mesh.
+* @param R_max Upper end point for the mesh.
+* @param N Number of mesh points along the mesh.
+* @param alpha Array containing the first mesh parameter.
+* @param beta Not used in a quadratic mesh.
+* @param gamma R_min
+*******************************************************************************/
 template<class Scalar>
 class Quadratic_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
@@ -604,6 +661,17 @@ public:
     }
 };
 
+/*******************************************************************************
+* Exponential mesh in arbitrary dimensions, r_i = alpha_i(exp(beta_i*x) - 1) +
+* gamma_i.
+* @param R_min Array containing the lower end points for the mesh.
+* @param R_max Array containing the upper end points for the mesh.
+* @param N Array containing the number of mesh points along the dimensions of
+*          the mesh.
+* @param alpha Array containing the first mesh parameters.
+* @param beta Array containing the second mesh parameters.
+* @param gamma R_min.
+*******************************************************************************/
 template<size_t D, class Scalar = double>
 class Exponential_mesh : public Mesh_base<D, Scalar> {
 public:
@@ -714,6 +782,15 @@ public:
     }
 };
 
+/*******************************************************************************
+* Exponential mesh in one dimension, r = alpha(exp(beta*x) - 1) + gamma.
+* @param R_min Lower end point for the mesh.
+* @param R_max Upper end point for the mesh.
+* @param N Number of mesh points along the dimensions of the mesh.
+* @param alpha First mesh parameter.
+* @param beta Second mesh parameter.
+* @param gamma R_min.
+*******************************************************************************/
 template<class Scalar>
 class Exponential_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:

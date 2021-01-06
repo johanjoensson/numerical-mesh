@@ -1,7 +1,7 @@
 #include <numerical-mesh.h>
 #include <gtest/gtest.h>
 
-#define TOL 5e-16
+#define TOL 5e-15
 
 TEST(LinearMesh, TestLinear1D)
 {

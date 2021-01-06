@@ -28,7 +28,11 @@ author = 'Johan Jönsson'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-        "breathe"
+    'sphinx.ext.todo',
+    'sphinx.ext.coverage',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
+    'breathe'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

@@ -28,7 +28,12 @@
 *  -- std::transform with 2 input containers                                   *
 *******************************************************************************/
 
-/*******************************************************************************
+/*!*****************************************************************************
+ * \defgroup NumMesh Numerical mesh
+ * @{
+ ******************************************************************************/
+
+/*!*****************************************************************************
 * The arithmetic concept, integral or floating point, is used to signify any
 * numeric type.
 *******************************************************************************/
@@ -48,13 +53,10 @@ namespace{
     }
 }
 
-/*******************************************************************************
+/*!*****************************************************************************
 * Base class for all numerical mesh classes. All meshes can be described by
-* (max) three parameters and the number of mesh points (including endpoints).
-* @param alpha First parameter for the mesh.
-* @param beta Second parameter for the mesh.
-* @param gamma Third parameter for the mesh.
-* @param N Number of mesh points in the mesh (including endpoints).
+* (max) three parameters and the number of mesh points (including endpoints)
+* for each direction.
 *******************************************************************************/
 #if __cplusplus >= 202002L
 template<size_t Dim, floating_point Scalar = double>
@@ -66,7 +68,8 @@ class Mesh_base {
 
 protected:
     template<class A, class B>
-    std::array<std::tuple<A, B>, Dim> zip2 (const std::array<A, Dim>& a, const std::array<B, Dim>& b) const
+    std::array<std::tuple<A, B>, Dim> zip2 (const std::array<A, Dim>& a, const std::array<B, Dim>& b)
+        const noexcept
     {
         std::array<std::tuple<A, B>, Dim> res;
 #if __cplusplus >= 202002L
@@ -87,7 +90,9 @@ protected:
     }
 
     template<class A, class B, class C>
-    std::array<std::tuple<A, B, C>, Dim> zip3(const std::array<A, Dim>& a, const std::array<B, Dim>& b, std::array<C, Dim> c) const
+    std::array<std::tuple<A, B, C>, Dim> zip3(const std::array<A, Dim>& a,
+        const std::array<B, Dim>& b, std::array<C, Dim> c)
+        const noexcept
     {
         auto tmp = zip2(b, c);
         std::array<std::tuple<A, B, C>, Dim> res;
@@ -111,7 +116,9 @@ protected:
     }
 
     template<class A, class B, class C, class D>
-    std::array<std::tuple<A, B, C, D>, Dim> zip4 (const std::array<A, Dim>& a, const std::array<B, Dim>& b, const std::array<C, Dim>& c, const std::array<D, Dim>& d) const
+    std::array<std::tuple<A, B, C, D>, Dim> zip4 (const std::array<A, Dim>& a,
+        const std::array<B, Dim>& b, const std::array<C, Dim>& c, const std::array<D, Dim>& d)
+        const noexcept
     {
         auto z1 = zip2(a, b), z2 = zip2(c, d);
         std::array<std::tuple<A, B, C, D>, Dim> res;
@@ -137,7 +144,9 @@ protected:
     }
 
     template<class A, class B, class C, class D>
-    std::array<std::tuple<A, B, C, D>, Dim> zip4 (const std::array<A, Dim>& a, const std::array<std::tuple<B, C, D>, Dim>& t) const
+    std::array<std::tuple<A, B, C, D>, Dim> zip4 (const std::array<A, Dim>& a,
+        const std::array<std::tuple<B, C, D>, Dim>& t)
+        const noexcept
     {
         std::array<std::tuple<A, B, C, D>, Dim> res;
 #if __cplusplus >= 202002L
@@ -165,9 +174,18 @@ protected:
     std::array<size_t, Dim> N_m;
     Mesh_base() = default;
 
-public:
-    virtual ~Mesh_base() = default;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a mesh from three arrays of parameters, and an array for the
+    * number of mesh points along the different directions.
+    * @param alpha First parameter for the mesh.
+    * @param beta Second parameter for the mesh.
+    * @param gamma Third parameter for the mesh (usually the end points of the
+    * mesh).
+    * @param N Number of mesh points in the mesh (including endpoints).
+    ***************************************************************************/
     Mesh_base(const Arr alpha, const Arr beta, const Arr gamma, const std::array<size_t, Dim>& N)
+     noexcept
      : alpha_m(alpha), beta_m(beta), gamma_m(gamma), N_m(N)
     {}
 
@@ -177,27 +195,64 @@ public:
     Mesh_base& operator=(const Mesh_base&) = default;
     Mesh_base& operator=(Mesh_base&&) = default;
 
-    auto parameters() const {return zip3(alpha_m, beta_m, gamma_m);}
+    auto parameters() const noexcept {return zip3(alpha_m, beta_m, gamma_m);}
 
-    virtual Arr r(const Arr& x) const = 0;
-    virtual Arr r2(const Arr& x) const = 0;
-    virtual Arr dr(const Arr& x) const = 0;
 
-    Arr operator()(const Arr& x) const {return r(x);}
+public:
+    virtual ~Mesh_base() = default;
 
-    std::array<std::vector<Scalar>, Dim> r() const;
+    /*!*************************************************************************
+    * Virtual function returning position of mesh point at x.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Arr r(const Arr& x) const noexcept = 0;
 
-    std::array<size_t, Dim> dim() const {return N_m;}
+    /*!*************************************************************************
+    * Virtual function returning squared position of mesh point at x.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Arr r2(const Arr& x) const noexcept = 0;
+
+    /*!*************************************************************************
+    * Virtual function returning step size of mesh at x.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Arr dr(const Arr& x) const noexcept = 0;
+
+    Arr operator()(const Arr& x) const noexcept {return r(x);}
+
+    //! Get all positions
+    /*!*************************************************************************
+    * Returns a vector containing all positions in the mesh.
+    ***************************************************************************/
+    std::vector<Arr> r()
+        const noexcept
+    {
+        std::vector<Arr> res;
+        Arr i;
+        i.fill(0);
+        while(i !=  N_m){
+            res.push_back( r(i) );
+            i[0]++;
+            for(auto j = 0; j < Dim; j++){
+                if(i[j] > N_m[j]){
+                    i[ j + 1]++;
+                    i[j] = 0;
+                }
+            }
+        }
+    }
+
+    //! Get mesh dimensions
+    /*!*************************************************************************
+    * Returns an array containing the number of mesh points along each directon.
+    ***************************************************************************/
+    std::array<size_t, Dim> dim() const noexcept { return N_m;}
 
 };
 
-/*******************************************************************************
-* 1D template specialization, instead of using 1D-arrays we can use the vales
-* directly.
-* @param alpha First parameter for the mesh.
-* @param beta Second parameter for the mesh.
-* @param gamma Third parameter for the mesh.
-* @param N Number of mesh points in the mesh (including endpoints).
+/*!*****************************************************************************
+* 1D template specialization, instead of using arrays we can use scalar values.
 *******************************************************************************/
 #if __cplusplus >= 202002L
 template<floating_point Scalar>
@@ -212,7 +267,16 @@ protected:
 
 public:
     virtual ~Mesh_base() = default;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a mesh from three parameters, and the number of mesh points.
+    * @param alpha First parameter for the mesh.
+    * @param beta Second parameter for the mesh.
+    * @param gamma Third parameter for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Mesh_base(const Scalar alpha, const Scalar beta, const Scalar gamma, const size_t N)
+     noexcept
      : alpha_m(alpha), beta_m(beta), gamma_m(gamma), N_m(N)
     {}
 
@@ -222,12 +286,32 @@ public:
     Mesh_base& operator=(const Mesh_base&) = default;
     Mesh_base& operator=(Mesh_base&&) = default;
 
-    virtual Scalar r(const Scalar& x) const = 0;
-    virtual Scalar r2(const Scalar& x) const = 0;
-    virtual Scalar dr(const Scalar& x) const = 0;
-    Scalar operator()(const Scalar& x) const {return r(x);}
+    /*!*************************************************************************
+    * Virtual function returning position of mesh point at x.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Scalar r(const Scalar& x) const noexcept = 0;
 
-    virtual std::vector<Scalar> r() const
+    /*!*************************************************************************
+    * Virtual function returning square of position of mesh point at x.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Scalar r2(const Scalar& x) const noexcept = 0;
+
+    /*!*************************************************************************
+    * Virtual function returning step sze of mesh at x.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Scalar dr(const Scalar& x) const noexcept = 0;
+
+    Scalar operator()(const Scalar& x) const noexcept {return r(x);}
+
+    //! Get all positions
+    /*!*************************************************************************
+    * Returns a vector containing all positions in the mesh.
+    ***************************************************************************/
+    std::vector<Scalar> r()
+        const noexcept
     {
         std::vector<Scalar> res;
         for(size_t i = 0; i < this->N_m; i++){
@@ -236,7 +320,12 @@ public:
         return res;
     }
 
-    virtual std::vector<Scalar> r2() const
+    //! Get all positions squared
+    /*!*************************************************************************
+    * Returns a vector containing all squared positions in the mesh.
+    ***************************************************************************/
+    std::vector<Scalar> r2()
+        const noexcept
     {
         std::vector<Scalar> res;
         for(size_t i = 0; i < this->N_m; i++){
@@ -245,7 +334,12 @@ public:
         return res;
     }
 
-    virtual std::vector<Scalar> dr() const
+    //! Get all step sizes
+    /*!*************************************************************************
+    * Returns a vector containing all step sizes in the mesh.
+    ***************************************************************************/
+    std::vector<Scalar> dr()
+        const noexcept
     {
         std::vector<Scalar> res;
         for(size_t i = 0; i < this->N_m; i++){
@@ -254,8 +348,17 @@ public:
         return res;
     }
 
+    //! Map function over mesh points
+    /*!*************************************************************************
+    * Returns a vector containing the results of the function f, applied to each
+    * mesh point.
+    * @param f Function to map over the mesh.
+    * @param h Step size (positive integer) between mesh points, default = 1.
+    * \return vector containing the values obtained.
+    ***************************************************************************/
     template<class Func>
     std::vector<Scalar> evaluate(Func f, size_t h = 1)
+        const noexcept
     {
         std::vector<Scalar> res;
         for(size_t i = 0; i < this->N_m; i += h){
@@ -264,18 +367,15 @@ public:
         return res;
     }
 
-    template<class Func>
-    std::vector<Scalar> evaluate(Func f, Scalar x0, Scalar x1, Scalar h)
-    {
-        std::vector<Scalar> res;
-        for(Scalar x = x0; x <= x1; x += h){
-            res.push_back(f(this->r(x)));
-        }
-        return res;
-    }
+    //! Get mesh dimensions
+    /*!*************************************************************************
+    * Returns the number of mesh points.
+    ***************************************************************************/
+    size_t dim() const noexcept { return N_m; }
 
-    size_t dim() const {return N_m;}
-
+    /*!*************************************************************************
+    * Class for enabling iteration through a mesh
+    ***************************************************************************/
     class iterator{
     private:
         const Mesh_base& m_m;
@@ -292,27 +392,30 @@ public:
 
         Scalar operator*(){return m_m.r(i_m);}
 
-        bool operator==(const iterator& b)const{return i_m == b.i_m;}
-        bool operator!=(const iterator& b)const{return !(*this == b);}
-        bool operator>=(const iterator& b)const{return i_m >= b.i_m;}
-        bool operator<=(const iterator& b)const{return i_m <= b.i_m;}
-        bool operator>(const iterator& b)const{return !(*this <= b);}
-        bool operator<(const iterator& b)const{return !(*this >= b);}
+        bool operator==(const iterator& b)const noexcept{return i_m == b.i_m;}
+        bool operator!=(const iterator& b)const noexcept{return !(*this == b);}
+        bool operator>=(const iterator& b)const noexcept{return i_m >= b.i_m;}
+        bool operator<=(const iterator& b)const noexcept{return i_m <= b.i_m;}
+        bool operator>(const iterator& b)const noexcept{return !(*this <= b);}
+        bool operator<(const iterator& b)const noexcept{return !(*this >= b);}
 
-        iterator operator++(int){auto res = *this; i_m++; return res;}
-        iterator& operator++(){i_m++; return *this;}
-        iterator operator--(int){auto res = *this; i_m--; return res;}
-        iterator& operator--(){i_m--; return *this;}
+        iterator operator++(int) noexcept{auto res = *this; i_m++; return res;}
+        iterator& operator++() noexcept{i_m++; return *this;}
+        iterator operator--(int) noexcept{auto res = *this; i_m--; return res;}
+        iterator& operator--() noexcept{i_m--; return *this;}
 
-        iterator& operator+=(const size_t n){i_m += n; return *this;}
-        iterator& operator-=(const size_t n){i_m -= n; return *this;}
+        iterator& operator+=(const size_t n) noexcept{i_m += n; return *this;}
+        iterator& operator-=(const size_t n) noexcept{i_m -= n; return *this;}
 
-        iterator operator+(const size_t n)const{auto res = *this; return (res += n);}
-        iterator operator-(const size_t n)const{auto res = *this; return (res -= n);}
-        size_t operator-(const iterator& it)const{return this->i_m - it.i_m;}
+        iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
+        iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
+        size_t operator-(const iterator& it)const noexcept{return this->i_m - it.i_m;}
 
-        Scalar operator[](const size_t n)const{return m_m.r(n);}
+        Scalar operator[](const size_t n)const noexcept{return m_m.r(n);}
     };
+    /*!*************************************************************************
+    * Class for enabling iteration through a mesh, constant version
+    ***************************************************************************/
     class const_iterator{
     private:
         const Mesh_base& m_m;
@@ -327,58 +430,58 @@ public:
         const_iterator& operator=(const const_iterator&) = default;
         const_iterator& operator=(const_iterator&&) = default;
 
-        Scalar operator*(){return m_m.r(i_m);}
+        Scalar operator*() noexcept {return m_m.r(i_m);}
 
-        bool operator==(const const_iterator& b)const{return i_m == b.i_m;}
-        bool operator!=(const const_iterator& b)const{return !(*this == b);}
-        bool operator>=(const const_iterator& b)const{return i_m >= b.i_m;}
-        bool operator<=(const const_iterator& b)const{return i_m <= b.i_m;}
-        bool operator>(const const_iterator& b)const{return !(*this <= b);}
-        bool operator<(const const_iterator& b)const{return !(*this >= b);}
+        bool operator==(const const_iterator& b)const noexcept{return i_m == b.i_m;}
+        bool operator!=(const const_iterator& b)const noexcept{return !(*this == b);}
+        bool operator>=(const const_iterator& b)const noexcept{return i_m >= b.i_m;}
+        bool operator<=(const const_iterator& b)const noexcept{return i_m <= b.i_m;}
+        bool operator>(const const_iterator& b)const noexcept{return !(*this <= b);}
+        bool operator<(const const_iterator& b)const noexcept{return !(*this >= b);}
 
-        const_iterator operator++(int){auto res = *this; i_m++; return res;}
-        const_iterator& operator++(){i_m++; return *this;}
-        const_iterator operator--(int){auto res = *this; i_m--; return res;}
-        const_iterator& operator--(){i_m--; return *this;}
+        const_iterator operator++(int) noexcept{auto res = *this; i_m++; return res;}
+        const_iterator& operator++() noexcept{i_m++; return *this;}
+        const_iterator operator--(int) noexcept{auto res = *this; i_m--; return res;}
+        const_iterator& operator--() noexcept{i_m--; return *this;}
 
-        const_iterator& operator+=(const size_t n){i_m += n; return *this;}
-        const_iterator& operator-=(const size_t n){i_m -= n; return *this;}
+        const_iterator& operator+=(const size_t n) noexcept{i_m += n; return *this;}
+        const_iterator& operator-=(const size_t n) noexcept{i_m -= n; return *this;}
 
-        const_iterator operator+(const size_t n)const{auto res = *this; return (res += n);}
-        const_iterator operator-(const size_t n)const{auto res = *this; return (res -= n);}
-        size_t operator-(const const_iterator& it)const{return this->i_m - it.i_m;}
+        const_iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
+        const_iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
+        size_t operator-(const const_iterator& it)const noexcept{return this->i_m - it.i_m;}
 
-        const Scalar operator[](const size_t n)const{return m_m.r(n);}
+        const Scalar operator[](const size_t n)const noexcept{return m_m.r(n);}
     };
 
+    /*!*************************************************************************
+    * Class for enabling reverse iteration through a mesh
+    ***************************************************************************/
     typedef std::reverse_iterator<iterator> reverse_iterator;
+    /*!*************************************************************************
+    * Class for enabling reverse iteration through a mesh, constant version
+    ***************************************************************************/
     typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
-    iterator begin(){return iterator(*this, 0);}
-    const_iterator begin() const {return const_iterator(*this, 0);}
-    const_iterator cbegin() const {return const_iterator(*this, 0);}
-    iterator end(){return iterator(*this, N_m);}
-    const_iterator end() const {return const_iterator(*this, N_m);}
-    const_iterator cend() const {return const_iterator(*this, N_m);}
+    iterator begin() noexcept{return iterator(*this, 0);}
+    const_iterator begin() const noexcept{return const_iterator(*this, 0);}
+    const_iterator cbegin() const noexcept{return const_iterator(*this, 0);}
+    iterator end() noexcept{return iterator(*this, N_m);}
+    const_iterator end() const noexcept{return const_iterator(*this, N_m);}
+    const_iterator cend() const  noexcept{return const_iterator(*this, N_m);}
 
-    reverse_iterator rbegin(){return reverse_iterator(this->begin());}
-    const_reverse_iterator rbegin() const {return const_reverse_iterator(this->begin());}
-    const_reverse_iterator crbegin() const {return const_reverse_iterator(this->begin());}
-    reverse_iterator rend(){return reverse_iterator(this->end());}
-    const_reverse_iterator rend() const {return const_reverse_iterator(this->end());}
-    const_reverse_iterator crend() const {return const_reverse_iterator(this->cend());}
+    reverse_iterator rbegin() noexcept{return reverse_iterator(this->begin());}
+    const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->begin());}
+    const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->begin());}
+    reverse_iterator rend() noexcept{return reverse_iterator(this->end());}
+    const_reverse_iterator rend() const noexcept{return const_reverse_iterator(this->end());}
+    const_reverse_iterator crend() const noexcept{return const_reverse_iterator(this->cend());}
 };
 
-/*******************************************************************************
-* Linear mesh in arbitrary dimensions.
-* @param R_min Array containing the lower end points for the mesh.
-* @param R_max Array containing the upper end points for the mesh.
-* @param N Array containing the number of mesh points along the different
-*          dimensions of the mesh.
-* @param alpha Array containing the step sizes along the different dimensions.
-* @param beta Not used in a linear mesh.
-* @param gamma R_min
-*******************************************************************************/
+/*!*************************************************************************
+* Class representing a D-dimensional linear mesh. Mesh points, \f$ \bar{r} \f$, are
+* calculated as \f$ r_i = \alpha_i*x_i + \gamma_i, i = 0 \ldots D - 1 \f$
+***************************************************************************/
 template<size_t D, class Scalar = double>
 class Linear_mesh : public Mesh_base<D, Scalar> {
 private:
@@ -386,7 +489,15 @@ private:
 
 public:
     using Arr = std::array<Scalar, D>;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a linear mesh from two parameters, and the number of mesh points.
+    * @param R_min Lower end points for the mesh.
+    * @param R_max Upper end points for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Linear_mesh(const Arr& R_min, const Arr& R_max, const std::array<size_t, D>& N)
+     noexcept
     : Mesh_base<D, Scalar>(
         [this] (const Arr& R_min, const Arr& R_max,  const std::array<size_t, D>& N)
         {
@@ -417,7 +528,15 @@ public:
     Linear_mesh& operator=(const Linear_mesh&) = default;
     Linear_mesh& operator=(Linear_mesh&&) = default;
 
-    Arr r(const Arr& x) const override
+    //! Get position at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning the
+    * position, \f$ r_i(x_i) = \alpha_i*x_i + \gamma_i \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The position, r, of the point at index x.
+    ***************************************************************************/
+    Arr r(const Arr& x)
+        const noexcept override
     {
         Arr res;
 
@@ -447,7 +566,16 @@ public:
         return res;
     }
 
-    Arr r2(const Arr& x) const override
+    //! Get position squared at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning an
+    * Array containing the squared components of the position,
+    * \f$ r2_i(x) = r_i(x)^2 \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The squared position, r2, of the point at index x.
+    ***************************************************************************/
+    Arr r2(const Arr& x)
+        const noexcept override
     {
         Arr res, r = this->r(x);
         std::transform(std::begin(r), std::end(r), std::begin(res),
@@ -455,20 +583,24 @@ public:
         return res;
     }
 
-    Arr dr(const Arr& x) const override
+    //! Get step size at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning an
+    * Array containing the step size at coordinate x,
+    * \f$ dr(x)_i = \left(\left.\frac{dr}{dx}\right|_x\right)_i = \alpha_i \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The step size, \f$ \alpha_i \f$, of the point at index x.
+    ***************************************************************************/
+    Arr dr(const Arr& x)
+        const noexcept override
     {
         return this->alpha_m;
     }
 };
 
-/*******************************************************************************
-* Linear mesh in one dimension, r = alpha*x + gamma.
-* @param R_min Lower end point for the mesh.
-* @param R_max Upper end point for the mesh.
-* @param N Number of mesh points along the mesh.
-* @param alpha Step size.
-* @param beta Not used in a linear mesh.
-* @param gamma R_min
+/*!*****************************************************************************
+* Partial specialization Linear_mesh for one dimension,
+* \f$ r = \alpha*x + \gamma \f$.
 *******************************************************************************/
 template<class Scalar>
 class Linear_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
@@ -476,7 +608,15 @@ private:
     Linear_mesh() = default;
 
 public:
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a linear mesh from two parameters, and the number of mesh points.
+    * @param R_min Lower end point for the mesh.
+    * @param R_max Upper end point for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Linear_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
+     noexcept
     : Mesh_base<1, Scalar>((R_max - R_min)/(N - 1), 0, R_min, N)
     {}
 
@@ -492,38 +632,66 @@ public:
     using Mesh_base<1, Scalar>::r2;
     using Mesh_base<1, Scalar>::dr;
 
-    Scalar r(const Scalar& x) const override
+    //! Get position at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate supplied, returning the
+    * position, \f$ r(x) = \alpha*x + \gamma \f$.
+    * @param x Coordinate to evaluate.
+    * \return The position, r, of the point at index x.
+    ***************************************************************************/
+    Scalar r(const Scalar& x)
+        const noexcept override
     {
         return x*this->alpha_m + this->gamma_m;
     }
 
-    Scalar r2(const Scalar& x) const override
+    //! Get position squared at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate squared supplied,
+    * returning the squared position, \f$ r2(x) = (r(x))^2 \f$.
+    * @param x Coordinate to evaluate.
+    * \return The squared position, \f$ r2 \f$, of the point at index x.
+    ***************************************************************************/
+    Scalar r2(const Scalar& x)
+        const noexcept override
     {
         return std::pow(this->r(x), 2);
     }
 
-    Scalar dr(const Scalar& x) const override
+    //! Get step size at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate squared supplied,
+    * returning the step_size, \f$ dr(x) = \frac{dr}{dx} = \alpha \f$.
+    * @param x Coordinate to evaluate.
+    * \return The step size, \f$ \alpha \f$, at index x.
+    ***************************************************************************/
+    Scalar dr(const Scalar& x)
+        const noexcept override
     {
         return this->alpha_m;
     }
 };
 
-/*******************************************************************************
-* Quadratic mesh in arbitrary dimensions, r_i = alpha_i*x_i*x_i + gamma_i.
-* @param R_min Array containing the lower end points for the mesh.
-* @param R_max Array containing the upper end points for the mesh.
-* @param N Array containing the number of mesh points along the different
-*          dimensions of the mesh.
-* @param alpha Array containing the first mesh parameter for each dimension.
-* @param beta Not used in a quadratic mesh.
-* @param gamma R_min
+
+/*!*****************************************************************************
+* Class representing a D-dimensional quadratic mesh. Mesh points,
+* \f$ \bar{r} \f$, are calculated as \f$ r_i = \alpha_i*x_i^2 + \gamma_i \f$.
 *******************************************************************************/
 template<size_t D, class Scalar = double>
 class Quadratic_mesh : public Mesh_base<D, Scalar> {
 public:
     using Arr = std::array<Scalar, D>;
     Quadratic_mesh() = delete;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a quadratic mesh from two parameters, and the number of mesh
+    * points.
+    * @param R_min Lower end points for the mesh.
+    * @param R_max Upper end points for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Quadratic_mesh(const Arr& R_min, const Arr& R_max, const std::array<size_t, D>& N)
+     noexcept
     : Mesh_base<D, Scalar>(
         [this] (const Arr& R_min, const Arr& R_max, const std::array<size_t, D>& N)
         {
@@ -554,7 +722,15 @@ public:
     Quadratic_mesh& operator=(const Quadratic_mesh&) = default;
     Quadratic_mesh& operator=(Quadratic_mesh&&) = default;
 
-    Arr r(const Arr& x) const override
+    //! Get position at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning the
+    * position, \f$ r_i(x) = \alpha_i*x_i*x_i + \gamma_i \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The position, r, of the point at index x.
+    ***************************************************************************/
+    Arr r(const Arr& x)
+        const noexcept override
     {
         Arr res;
 #if __cplusplus >= 202002L
@@ -583,14 +759,31 @@ public:
         return res;
     }
 
-    Arr r2(const Arr& x) const override
+    //! Get position squared at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate squared supplied,
+    * returning the squared position, \f$ r2(x) = (r(x))^2 \f$.
+    * @param x Coordinate to evaluate.
+    * \return The squared position, \f$ r2 \f$, of the point at index x.
+    ***************************************************************************/
+    Arr r2(const Arr& x)
+        const noexcept override
     {
         Arr res, r = this->r(x);
         std::transform(std::begin(r), std::end(r), std::begin(res), [] (const Scalar& s) {return s*s;});
         return res;
     }
 
-    Arr dr(const Arr& x) const override
+    //! Get step size at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning an
+    * Array containing the step size at coordinate x,
+    * \f$ dr(x_i)_i = \left(\left.\frac{dr}{dx}\right|_x\right)_i = 2x_i\alpha_i \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The step size, \f$ 2x_i\alpha_i \f$, of the point at index x.
+    ***************************************************************************/
+    Arr dr(const Arr& x)
+        const noexcept override
     {
         Arr res;
 #if __cplusplus >= 202002L
@@ -620,20 +813,23 @@ public:
     }
 };
 
-/*******************************************************************************
-* Quadratic mesh in one dimension, r = alpha*x*x + gamma.
-* @param R_min Lower end point for the mesh.
-* @param R_max Upper end point for the mesh.
-* @param N Number of mesh points along the mesh.
-* @param alpha Array containing the first mesh parameter.
-* @param beta Not used in a quadratic mesh.
-* @param gamma R_min
+/*!*****************************************************************************
+* Quadratic mesh in one dimension, \f$ r = \alpha*x^2 + \gamma \f$.
 *******************************************************************************/
 template<class Scalar>
 class Quadratic_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
     Quadratic_mesh() = delete;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a 1D-quadratic mesh from two parameters, and the number of mesh
+    * points.
+    * @param R_min Lower end point for the mesh.
+    * @param R_max Upper end point for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Quadratic_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
+     noexcept
     : Mesh_base<1, Scalar>((R_max - R_min)/std::pow(N - 1, 2), 0, R_min, N )
     {}
 
@@ -645,40 +841,69 @@ public:
     Quadratic_mesh& operator=(const Quadratic_mesh&) = default;
     Quadratic_mesh& operator=(Quadratic_mesh&&) = default;
 
-    Scalar r(const Scalar& x) const override
+    //! Get position at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning the
+    * position, \f$ r(x) = \alpha*x^2 + \gamma \f$.
+    * @param x Coordinate to evaluate.
+    * \return The position, r, of the point at index x.
+    ***************************************************************************/
+    Scalar r(const Scalar& x)
+        const noexcept override
     {
         return sgn(x)*std::pow(x, 2)*this->alpha_m + this->gamma_m;
     }
 
-    Scalar r2(const Scalar& x) const override
+    //! Get position squared at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate squared supplied,
+    * returning the squared position, \f$ r2(x) = (r(x))^2 \f$.
+    * @param x Coordinate to evaluate.
+    * \return The squared position, \f$ r2 \f$, of the point at index x.
+    ***************************************************************************/
+    Scalar r2(const Scalar& x)
+        const noexcept override
     {
         return std::pow(this->r(x), 2);
     }
 
-    Scalar dr(const Scalar& x) const override
+    //! Get step size at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning
+    * the step size at coordinate x,
+    * \f$ dr(x) = \left.\frac{dr}{dx}\right|_x\ = 2x\alpha \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The step size, \f$ 2x\alpha \f$, of the point at index x.
+    ***************************************************************************/
+    Scalar dr(const Scalar& x)
+        const noexcept override
     {
         return 2*this->alpha_m*sgn(x)*x;
     }
 };
 
-/*******************************************************************************
-* Exponential mesh in arbitrary dimensions, r_i = alpha_i(exp(beta_i*x) - 1) +
-* gamma_i.
-* @param R_min Array containing the lower end points for the mesh.
-* @param R_max Array containing the upper end points for the mesh.
-* @param N Array containing the number of mesh points along the dimensions of
-*          the mesh.
-* @param alpha Array containing the first mesh parameters.
-* @param beta Array containing the second mesh parameters.
-* @param gamma R_min.
+/*!*****************************************************************************
+* Exponential mesh in arbitrary dimensions,
+* \f$ r_i = \alpha_i(e^{\beta_i x} - 1) + \gamma_i \f$.
 *******************************************************************************/
 template<size_t D, class Scalar = double>
 class Exponential_mesh : public Mesh_base<D, Scalar> {
 public:
     using Arr = std::array<Scalar, D>;
     Exponential_mesh() = delete;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a exponential mesh from three parameters, and the number of mesh
+    * points.
+    * @param R_min Lower end points for the mesh.
+    * @param R_max Upper end points for the mesh.
+    * @param beta Array containing the \f$ \beta_i \f$ for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Exponential_mesh(const Arr& R_min, const Arr& R_max, const Arr& beta, const std::array<size_t, D>& N)
-    : Mesh_base<D, Scalar>([this] (const Arr& R_min, const Arr& R_max, const Arr& beta, const std::array<size_t, D>& N)
+     noexcept
+    : Mesh_base<D, Scalar>(
+        [this] (const Arr& R_min, const Arr& R_max, const Arr& beta, const std::array<size_t, D>& N)
         {
             Arr res;
             auto z4 = this->zip4(R_min, R_max, beta, N);
@@ -707,7 +932,15 @@ public:
     Exponential_mesh& operator=(const Exponential_mesh&) = default;
     Exponential_mesh& operator=(Exponential_mesh&&) = default;
 
-    Arr r(const Arr& x) const override
+    //! Get position at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning the
+    * position, \f$ r_i(x_i) = \alpha_i(e^{\beta_i x_i} - 1) + \gamma_i \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The position, r, of the point at index x.
+    ***************************************************************************/
+    Arr r(const Arr& x)
+        const noexcept override
     {
         Arr res;
 #if __cplusplus >= 202002L
@@ -736,14 +969,32 @@ public:
         return res;
     }
 
-    Arr r2(const Arr& x) const override
+    //! Get position squared at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate squared supplied,
+    * returning the squared position, \f$ r2_i(x_i) = (r(x_i))^2 \f$.
+    * @param x Coordinate to evaluate.
+    * \return The squared position, \f$ r2 \f$, of the point at index x.
+    ***************************************************************************/
+    Arr r2(const Arr& x)
+        const noexcept override
     {
         Arr res, r = this->r(x);
         std::transform(std::begin(r), std::end(r), std::begin(res), [] (const Scalar& s) {return s*s;});
         return res;
     }
 
-    Arr dr(const Arr& x) const override
+    //! Get step size at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning
+    * the step size at coordinate x,
+    * \f$ dr_i(x_i) = \left(\left.\frac{dr}{dx}\right|_x\right)_i = \alpha_i\beta_i e^{\beta_i x_i} \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The step size, \f$ \alpha_i\beta_i e^{\beta_i x_i} \f$, of the
+    * point at index x.
+    ***************************************************************************/
+    Arr dr(const Arr& x)
+        const noexcept override
     {
         Arr x_abs;
         std::transform(std::begin(x), std::end(x), std::begin(x_abs),
@@ -782,20 +1033,24 @@ public:
     }
 };
 
-/*******************************************************************************
-* Exponential mesh in one dimension, r = alpha(exp(beta*x) - 1) + gamma.
-* @param R_min Lower end point for the mesh.
-* @param R_max Upper end point for the mesh.
-* @param N Number of mesh points along the dimensions of the mesh.
-* @param alpha First mesh parameter.
-* @param beta Second mesh parameter.
-* @param gamma R_min.
+/*!*****************************************************************************
+* Exponential mesh in one dimension, \f$ r = \alpha(e^{\beta x} - 1) + \gamma \f$.
 *******************************************************************************/
 template<class Scalar>
 class Exponential_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
 public:
     Exponential_mesh() = delete;
+    //! Constructor
+    /*!*************************************************************************
+    * Construct a exponential mesh from three parameters, and the number of mesh
+    * points.
+    * @param R_min Lower end point for the mesh.
+    * @param R_max Upper end point for the mesh.
+    * @param beta The parameter \f$ \beta \f$ for the mesh.
+    * @param N Number of mesh points (including endpoints).
+    ***************************************************************************/
     Exponential_mesh(const Scalar R_min, const Scalar R_max, const Scalar beta, const size_t N)
+     noexcept
     : Mesh_base<1, Scalar>((R_max - R_min)/std::expm1(beta*(N-1)), beta, R_min, N)
     {}
 
@@ -807,22 +1062,52 @@ public:
     Exponential_mesh& operator=(const Exponential_mesh&) = default;
     Exponential_mesh& operator=(Exponential_mesh&&) = default;
 
-    Scalar r(const Scalar& x) const override
+    //! Get position at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning the
+    * position, \f$ r(x) = \alpha(e^{\beta x} - 1) + \gamma \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The position, r, of the point at index x.
+    ***************************************************************************/
+    Scalar r(const Scalar& x)
+        const noexcept override
     {
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
         return sgn(x)*a*std::expm1(sgn(x)*b*x) + c;
     }
 
-    Scalar r2(const Scalar& x) const override
+    //! Get position squared at coordinate
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinate squared supplied,
+    * returning the squared position, \f$ r2(x) = (r(x))^2 \f$.
+    * @param x Coordinate to evaluate.
+    * \return The squared position, \f$ r2 \f$, of the point at index x.
+    ***************************************************************************/
+    Scalar r2(const Scalar& x)
+        const noexcept override
     {
         return std::pow(this->r(x), 2);
     }
 
-    Scalar dr(const Scalar& x) const override
+    //! Get step size at coordinates
+    /*!*************************************************************************
+    * This function evaluates the mesh at the coordinates supplied, returning
+    * the step size at coordinate x,
+    * \f$ dr(x) = \left.\frac{dr}{dx}\right|_x = \alpha\beta e^{\beta x} \f$.
+    * @param x Array containing the coordinate to evaluate.
+    * \return The step size, \f$ \alpha\beta e^{\beta x} \f$, of the point at
+    * index x.
+    ***************************************************************************/
+    Scalar dr(const Scalar& x)
+        const noexcept override
     {
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
         return b*(this->r(sgn(x)*x) + a - c);
     }
 };
+
+/*!*****************************************************************************
+* @}
+*******************************************************************************/
 
 #endif //NUMERICAL_MESH_LIB_H

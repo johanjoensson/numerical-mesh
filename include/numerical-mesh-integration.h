@@ -5,7 +5,7 @@
 #error The numerical-mesh-integration library requires at least c++11!
 #endif
 
-#include "numerical-mesh.h"
+#include <numerical-mesh.h>
 #include <functional>
 #include <type_traits>
 

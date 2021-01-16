@@ -66,6 +66,30 @@ template<size_t Dim, class Scalar = double>
 class Mesh_base {
     using Arr = std::array<Scalar, Dim>;
 
+    void increment(Arr& arr, Scalar step)
+        const noexcept
+    {
+        arr[0] += step;
+        for(auto j = 0; j < Dim - 1; j++){
+            while(arr[j] >= N_m[j]){
+                arr[j + 1]++;
+                arr[j] -= N_m[j];
+            }
+        }
+    }
+
+    void decrement(Arr& arr, Scalar step)
+        const noexcept
+    {
+        arr[0] -= step;
+        for(auto j = 0; j < Dim; j++){
+            while(arr[j] < 0){
+                arr[j + 1]--;
+                arr[j] += N_m[j];
+            }
+        }
+    }
+
 protected:
     template<class A, class B>
     std::array<std::tuple<A, B>, Dim> zip2 (const std::array<A, Dim>& a, const std::array<B, Dim>& b)
@@ -229,18 +253,13 @@ public:
         const noexcept
     {
         std::vector<Arr> res;
-        Arr i;
-        i.fill(0);
-        while(i !=  N_m){
-            res.push_back( r(i) );
-            i[0]++;
-            for(auto j = 0; j < Dim; j++){
-                if(i[j] > N_m[j]){
-                    i[ j + 1]++;
-                    i[j] = 0;
-                }
-            }
+        Arr coord;
+        coord.fill(0);
+        while(coord.back() <  N_m.back()){
+            res.push_back( r(coord) );
+            increment(coord, 1);
         }
+        return res;
     }
 
     //! Get mesh dimensions
@@ -248,6 +267,271 @@ public:
     * Returns an array containing the number of mesh points along each directon.
     ***************************************************************************/
     std::array<size_t, Dim> dim() const noexcept { return N_m;}
+
+    /*!*************************************************************************
+    * Class for representing a generic point in a mesh.
+    ***************************************************************************/
+    class mesh_point {
+    private:
+        const Mesh_base& m_m;
+        Arr i_m;
+    public:
+        mesh_point(const Mesh_base& m, const Arr i) : m_m{m}, i_m{i}{}
+        mesh_point() = delete;
+        mesh_point(const mesh_point&) = default;
+        mesh_point(mesh_point&&) = default;
+        ~mesh_point() = default;
+
+        mesh_point& operator=(const mesh_point&) = default;
+        mesh_point& operator=(mesh_point&&) = default;
+
+        Arr r() const noexcept {return m_m.r(i_m);}
+        Arr r2() const noexcept {return m_m.r2(i_m);}
+        Arr dr() const noexcept {return m_m.dr(i_m);}
+    };
+
+    /*!*************************************************************************
+    * Class for enabling iteration through a mesh
+    ***************************************************************************/
+    class iterator{
+    private:
+        const Mesh_base& m_m;
+        Arr i_m;
+    public:
+        typedef std::random_access_iterator_tag iterator_category;
+        iterator() = delete;
+        iterator(const iterator&) = default;
+        iterator(iterator&&) = default;
+        iterator(const Mesh_base& m, const Arr i) : m_m(m), i_m(i){}
+        ~iterator() = default;
+        iterator& operator=(const iterator&) = default;
+        iterator& operator=(iterator&&) = default;
+
+        mesh_point operator*(){return mesh_point(m_m, i_m);}
+
+        bool operator==(const iterator& b)const noexcept{return i_m == b.i_m;}
+        bool operator!=(const iterator& b)const noexcept{return !(*this == b);}
+        bool operator>=(const iterator& b)const noexcept{return i_m >= b.i_m;}
+        bool operator<=(const iterator& b)const noexcept{return i_m <= b.i_m;}
+        bool operator>(const iterator& b)const noexcept{return !(*this <= b);}
+        bool operator<(const iterator& b)const noexcept{return !(*this >= b);}
+
+        iterator operator++(int)
+            noexcept
+        {
+            auto res = *this;
+            increment(i_m, 1);
+            return res;
+        }
+
+        iterator& operator++()
+            noexcept
+        {
+            m_m.increment(i_m, 1);
+            return *this;
+        }
+
+        iterator operator--(int)
+            noexcept
+        {
+            auto res = *this;
+            decrement(i_m, 1);
+            return res;
+        }
+
+        iterator& operator--()
+            noexcept
+        {
+            decrement(i_m, 1);
+            return *this;
+        }
+
+
+        iterator& operator+=(const size_t n)
+            noexcept
+        {
+            increment(i_m, n);
+            return *this;
+        }
+
+        iterator& operator-=(const size_t n)
+            noexcept
+        {
+            decrement(i_m, n);
+            return *this;
+        }
+
+        iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
+        iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
+        size_t operator-(const iterator& it)
+            const noexcept
+        {
+            size_t diff = 0;
+            Scalar offset = 1;
+            for(auto j = 0; j < Dim; j++){
+                diff += (i_m[j] - it.i_m[j])*offset;
+                offset = 1;
+                for(auto k = 0; k < j; k++){
+                    offset *= N_m[k];
+                }
+            }
+            return this->i_m - it.i_m;
+        }
+
+        Arr operator[](const size_t n)const noexcept{return m_m.r(n);}
+    };
+    /*!*************************************************************************
+    * Class for enabling iteration through a mesh, constant version
+    ***************************************************************************/
+    class const_iterator{
+    private:
+        const Mesh_base& m_m;
+        Arr i_m;
+    public:
+        typedef std::random_access_iterator_tag iterator_category;
+        const_iterator() = delete;
+        const_iterator(const const_iterator&) = default;
+        const_iterator(const_iterator&&) = default;
+        const_iterator(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i){}
+        ~const_iterator() = default;
+        const_iterator& operator=(const const_iterator&) = default;
+        const_iterator& operator=(const_iterator&&) = default;
+
+        Arr operator*() noexcept {return mesh_point(m_m, i_m);}
+
+        bool operator==(const const_iterator& b)const noexcept{return i_m == b.i_m;}
+        bool operator!=(const const_iterator& b)const noexcept{return !(*this == b);}
+        bool operator>=(const const_iterator& b)const noexcept{return i_m >= b.i_m;}
+        bool operator<=(const const_iterator& b)const noexcept{return i_m <= b.i_m;}
+        bool operator>(const const_iterator& b)const noexcept{return !(*this <= b);}
+        bool operator<(const const_iterator& b)const noexcept{return !(*this >= b);}
+
+
+        const_iterator operator++(int)
+            noexcept
+        {
+            auto res = *this;
+            increment(i_m, 1);
+            return res;
+        }
+
+        const_iterator& operator++()
+            noexcept
+        {
+            increment(i_m, 1);
+            return *this;
+        }
+
+        const_iterator operator--(int)
+            noexcept
+        {
+            auto res = *this;
+            decrement(i_m, 1);
+            return res;
+        }
+
+        const_iterator& operator--()
+            noexcept
+        {
+            decrement(i_m, 1);
+            return *this;
+        }
+
+        const_iterator& operator+=(const size_t n)
+            noexcept
+        {
+            increment(i_m, n);
+            return *this;
+        }
+
+        const_iterator& operator-=(const size_t n)
+            noexcept
+        {
+            decrement(i_m, n);
+            return *this;
+        }
+
+        const_iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
+        const_iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
+        size_t operator-(const const_iterator& it)
+            const noexcept
+        {
+            size_t diff = 0;
+            Scalar offset = 1;
+            for(auto j = 0; j < Dim; j++){
+                diff += (i_m[j] - it.i_m[j])*offset;
+                offset = 1;
+                for(auto k = 0; k < j; k++){
+                    offset *= N_m[k];
+                }
+            }
+            return this->i_m - it.i_m;
+        }
+
+        const Arr operator[](const size_t n)const noexcept{return m_m.r(n);}
+    };
+
+    /*!*************************************************************************
+    * Class for enabling reverse iteration through a mesh
+    ***************************************************************************/
+    typedef std::reverse_iterator<iterator> reverse_iterator;
+    /*!*************************************************************************
+    * Class for enabling reverse iteration through a mesh, constant version
+    ***************************************************************************/
+    typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+    iterator begin()
+        noexcept
+    {
+        Arr i;
+        i.fill(0);
+        return iterator(*this, i);
+    }
+    const_iterator begin()
+        const noexcept
+    {
+        Arr i;
+        i.fill(0);
+        return const_iterator(*this, i);
+    }
+    const_iterator cbegin()
+        const noexcept
+    {
+        Arr i;
+        i.fill(0);
+        return const_iterator(*this, i);
+    }
+    iterator end()
+        noexcept
+    {
+        Arr i;
+        i.fill(0);
+        i.back() = N_m.back();
+        return iterator(*this, i);
+    }
+    const_iterator end()
+        const noexcept
+    {
+        Arr i;
+        i.fill(0);
+        i.back() = N_m.back();
+        return const_iterator(*this, i);
+    }
+    const_iterator cend()
+        const  noexcept
+    {
+        Arr i;
+        i.fill(0);
+        i.back() = N_m.back();
+        return const_iterator(*this, i);
+    }
+
+    reverse_iterator rbegin() noexcept{return reverse_iterator(this->begin());}
+    const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->begin());}
+    const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->begin());}
+    reverse_iterator rend() noexcept{return reverse_iterator(this->end());}
+    const_reverse_iterator rend() const noexcept{return const_reverse_iterator(this->end());}
+    const_reverse_iterator crend() const noexcept{return const_reverse_iterator(this->cend());}
 
 };
 
@@ -348,30 +632,33 @@ public:
         return res;
     }
 
-    //! Map function over mesh points
-    /*!*************************************************************************
-    * Returns a vector containing the results of the function f, applied to each
-    * mesh point.
-    * @param f Function to map over the mesh.
-    * @param h Step size (positive integer) between mesh points, default = 1.
-    * \return vector containing the values obtained.
-    ***************************************************************************/
-    template<class Func>
-    std::vector<Scalar> evaluate(Func f, size_t h = 1)
-        const noexcept
-    {
-        std::vector<Scalar> res;
-        for(size_t i = 0; i < this->N_m; i += h){
-            res.push_back(f(this->r(i)));
-        }
-        return res;
-    }
-
     //! Get mesh dimensions
     /*!*************************************************************************
     * Returns the number of mesh points.
     ***************************************************************************/
     size_t dim() const noexcept { return N_m; }
+
+    /*!*************************************************************************
+    * Class for representing a generic point in a 1D mesh.
+    ***************************************************************************/
+    class mesh_point {
+    private:
+        const Mesh_base& m_m;
+        Scalar i_m;
+    public:
+        mesh_point(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i) {}
+        mesh_point() = delete;
+        mesh_point(const mesh_point&) = default;
+        mesh_point(mesh_point&&) = default;
+        ~mesh_point() = default;
+
+        mesh_point& operator=(const mesh_point&) = default;
+        mesh_point& operator=(mesh_point&&) = default;
+
+        Scalar r() const noexcept { return m_m.r(i_m);}
+        Scalar r2() const noexcept { return m_m.r(i_m);}
+        Scalar dr() const noexcept { return m_m.r(i_m);}
+    };
 
     /*!*************************************************************************
     * Class for enabling iteration through a mesh
@@ -390,7 +677,7 @@ public:
         iterator& operator=(const iterator&) = default;
         iterator& operator=(iterator&&) = default;
 
-        Scalar operator*(){return m_m.r(i_m);}
+        mesh_point operator*(){return mesh_point(m_m, i_m);}
 
         bool operator==(const iterator& b)const noexcept{return i_m == b.i_m;}
         bool operator!=(const iterator& b)const noexcept{return !(*this == b);}
@@ -430,7 +717,7 @@ public:
         const_iterator& operator=(const const_iterator&) = default;
         const_iterator& operator=(const_iterator&&) = default;
 
-        Scalar operator*() noexcept {return m_m.r(i_m);}
+        mesh_point operator*(){return mesh_point(m_m, i_m);}
 
         bool operator==(const const_iterator& b)const noexcept{return i_m == b.i_m;}
         bool operator!=(const const_iterator& b)const noexcept{return !(*this == b);}
@@ -527,6 +814,12 @@ public:
 
     Linear_mesh& operator=(const Linear_mesh&) = default;
     Linear_mesh& operator=(Linear_mesh&&) = default;
+
+    using Mesh_base<D, Scalar>::r;
+    using Mesh_base<D, Scalar>::r2;
+    using Mesh_base<D, Scalar>::dr;
+
+
 
     //! Get position at coordinates
     /*!*************************************************************************

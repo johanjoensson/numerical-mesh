@@ -162,33 +162,24 @@ TEST(ExponentialMesh, TestExponential5D)
         });
 }
 
-TEST(MeshTest, TestEvaluate1D)
-{
-    auto func = [] (const double r)
-    {
-        return std::sin(2*M_PI*r);
-    };
-    Linear_mesh<1, double> ml(0, 1, 101);
-    Quadratic_mesh<1, double> mq(0, 1, 101);
-    Exponential_mesh<1, double> me(0, 1, 0.02, 101);
-    auto linear_res = ml.evaluate(func);
-    auto quadratic_res = mq.evaluate(func);
-    auto exponential_res = me.evaluate(func);
-
-    ASSERT_NEAR(linear_res.front(), 0, TOL);
-    ASSERT_NEAR(quadratic_res.front(), 0, TOL);
-    ASSERT_NEAR(exponential_res.front(), 0, TOL);
-
-    ASSERT_NEAR(linear_res.back(), 0, TOL);
-    ASSERT_NEAR(quadratic_res.back(), 0, TOL);
-    ASSERT_NEAR(exponential_res.back(), 0, TOL);
-}
-
 TEST(MeshTest, TestIterate1D)
 {
     double i = 0;
     Linear_mesh<1, double> m(0, 10, 11);
     for(auto v : m){
-        ASSERT_NEAR(i++, v, TOL);
+        ASSERT_NEAR(i++, v.r(), TOL);
+    }
+}
+
+TEST(MeshTest, TestIterate5D)
+{
+    size_t i = 0;
+    Linear_mesh<5, double> m({1., 1., 1., 1., 1.}, {6., 6., 6., 6., 6.}, {11, 11, 11, 11, 11});
+    auto r_check{m.r()};
+    for(auto ar : m){
+        for(auto k = 0; k < 5; k++){
+            ASSERT_NEAR(r_check[i][k], ar.r()[k], TOL) << "i " << i << ", k " << k;
+        }
+        i++;
     }
 }

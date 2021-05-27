@@ -12,8 +12,16 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 add_library(numerical-mesh-lib INTERFACE)
 target_compile_features(numerical-mesh-lib INTERFACE cxx_std_20)
 
-
 target_include_directories(numerical-mesh-lib INTERFACE include/)
+
+if(BUILD_PYTHON)
+	find_package(pybind11)
+	if(pybind11_FOUND)
+		add_subdirectory(python)
+	else()
+		message(STATUS "pybind11 not found, not building python bindings.")
+	endif()
+endif()
 
 # Only do these if this is the main project, and not if it is included through add_subdirectory
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)

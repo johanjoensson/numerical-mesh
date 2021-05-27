@@ -50,7 +50,7 @@ Scalar trapezoidal_integral(const Mesh_base<1, Scalar>& mesh,
     const std::function<Scalar(const Scalar&)>& integrand)
     noexcept
 {
-    return trapezoidal_integral<Scalar>(mesh, 0., static_cast<Scalar>(mesh.dim() - 1), integrand, 1);
+    return trapezoidal_integral<Scalar>(mesh, 0., static_cast<Scalar>(mesh.size() - 1), integrand, 1);
 }
 
 //! Compound Simpson's rule method numerical integral over numerical mesh
@@ -76,7 +76,7 @@ Scalar simpson_integral(const Mesh_base<1, Scalar>& mesh,
     const std::function<Scalar(const Scalar&)>& integrand)
     noexcept
 {
-    return simpson_integral<Scalar>(mesh, 0., static_cast<Scalar>(mesh.dim() - 1), integrand, 1);
+    return simpson_integral<Scalar>(mesh, 0., static_cast<Scalar>(mesh.size() - 1), integrand, 1);
 }
 
 //! Trapezoidal rule, with modified end points, method numerical integral over numerical mesh
@@ -105,7 +105,7 @@ Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh,
     const std::function<Scalar(const Scalar&)>& integrand)
     noexcept
 {
-    return corrected_trapezoidal_integral<Scalar, K>(mesh, 0., static_cast<Scalar>(mesh.dim() - 1), integrand, 1);
+    return corrected_trapezoidal_integral<Scalar, K>(mesh, 0., static_cast<Scalar>(mesh.size() - 1), integrand, 1);
 }
 
 namespace{

@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <tuple>
 #include <iostream>
+#include <memory>
 
 /*******************************************************************************
 * The __cplusplus macro is used to determine which c++ standard is used for the*
@@ -38,7 +39,8 @@
 * numeric type.
 *******************************************************************************/
 #if __cplusplus >= 202002L
-concept arithmetic = std::integral || std::floating_point
+template<class T>
+concept arithmetic = std::integral<T> || std::floating_point<T>;
 #endif
 
 namespace{
@@ -59,7 +61,7 @@ namespace{
 * for each direction.
 *******************************************************************************/
 #if __cplusplus >= 202002L
-template<size_t Dim, floating_point Scalar = double>
+template<size_t Dim, arithmetic Scalar = double>
 #else
 template<size_t Dim, class Scalar = double>
 #endif
@@ -219,7 +221,7 @@ protected:
     Mesh_base& operator=(const Mesh_base&) = default;
     Mesh_base& operator=(Mesh_base&&) = default;
 
-    auto parameters() const noexcept {return zip3(alpha_m, beta_m, gamma_m);}
+    std::array<std::tuple<Scalar, Scalar, Scalar>, Dim> parameters() const noexcept {return zip3(alpha_m, beta_m, gamma_m);}
 
 
 public:
@@ -243,7 +245,13 @@ public:
     ***************************************************************************/
     virtual Arr dr(const Arr& x) const noexcept = 0;
 
-    Arr operator()(const Arr& x) const noexcept {return r(x);}
+    /*!*************************************************************************
+    * Virtual function returning $\frac{d^2r}{dx^2}$.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Arr d2r(const Arr& x) const noexcept = 0;
+
+    virtual Arr d3r(const Arr& x) const noexcept = 0;
 
     //! Get all positions
     /*!*************************************************************************
@@ -261,23 +269,80 @@ public:
         }
         return res;
     }
+    std::vector<Arr> r2()
+        const noexcept
+    {
+        std::vector<Arr> res;
+        Arr coord;
+        coord.fill(0);
+        while(coord.back() <  N_m.back()){
+            res.push_back( r2(coord) );
+            increment(coord, 1);
+        }
+        return res;
+    }
+    std::vector<Arr> dr()
+        const noexcept
+    {
+        std::vector<Arr> res;
+        Arr coord;
+        coord.fill(0);
+        while(coord.back() <  N_m.back()){
+            res.push_back( dr(coord) );
+            increment(coord, 1);
+        }
+        return res;
+    }
+    std::vector<Arr> d2r()
+        const noexcept
+    {
+        std::vector<Arr> res;
+        Arr coord;
+        coord.fill(0);
+        while(coord.back() <  N_m.back()){
+            res.push_back( d2r(coord) );
+            increment(coord, 1);
+        }
+        return res;
+    }
+    std::vector<Arr> d3r()
+        const noexcept
+    {
+        std::vector<Arr> res;
+        Arr coord;
+        coord.fill(0);
+        while(coord.back() <  N_m.back()){
+            res.push_back( d3r(coord) );
+            increment(coord, 1);
+        }
+        return res;
+    }
 
     //! Get mesh dimensions
     /*!*************************************************************************
     * Returns an array containing the number of mesh points along each directon.
     ***************************************************************************/
-    std::array<size_t, Dim> dim() const noexcept { return N_m;}
+    size_t dim() const noexcept { return Dim;}
+    std::array<size_t, Dim> size() const noexcept {
+        std::array<size_t, Dim> res = N_m;
+        std::transform(std::begin(res), std::end(res), std::begin(res),
+            [](const size_t i)
+            {
+                return i;
+            });
+        return res;
+    }
 
     /*!*************************************************************************
     * Class for representing a generic point in a mesh.
     ***************************************************************************/
     class mesh_point {
     private:
-        const Mesh_base& m_m;
+        const Mesh_base* m_m;
         Arr i_m;
+        mesh_point() = default;
     public:
-        mesh_point(const Mesh_base& m, const Arr i) : m_m{m}, i_m{i}{}
-        mesh_point() = delete;
+        mesh_point(const Mesh_base* m, const Arr i) : m_m{m}, i_m{i}{}
         mesh_point(const mesh_point&) = default;
         mesh_point(mesh_point&&) = default;
         ~mesh_point() = default;
@@ -285,119 +350,50 @@ public:
         mesh_point& operator=(const mesh_point&) = default;
         mesh_point& operator=(mesh_point&&) = default;
 
-        Arr r() const noexcept {return m_m.r(i_m);}
-        Arr r2() const noexcept {return m_m.r2(i_m);}
-        Arr dr() const noexcept {return m_m.dr(i_m);}
+        Arr r() const noexcept {return m_m->r(i_m);}
+        Arr r2() const noexcept {return m_m->r2(i_m);}
+        Arr dr() const noexcept {return m_m->dr(i_m);}
+        Arr d2r() const noexcept {return m_m->d2r(i_m);}
+        Arr d3r() const noexcept {return m_m->d3r(i_m);}
+
     };
 
-    /*!*************************************************************************
-    * Class for enabling iteration through a mesh
-    ***************************************************************************/
-    class iterator{
-    private:
-        const Mesh_base& m_m;
-        Arr i_m;
-    public:
-        typedef std::random_access_iterator_tag iterator_category;
-        iterator() = delete;
-        iterator(const iterator&) = default;
-        iterator(iterator&&) = default;
-        iterator(const Mesh_base& m, const Arr i) : m_m(m), i_m(i){}
-        ~iterator() = default;
-        iterator& operator=(const iterator&) = default;
-        iterator& operator=(iterator&&) = default;
-
-        mesh_point operator*(){return mesh_point(m_m, i_m);}
-
-        bool operator==(const iterator& b)const noexcept{return i_m == b.i_m;}
-        bool operator!=(const iterator& b)const noexcept{return !(*this == b);}
-        bool operator>=(const iterator& b)const noexcept{return i_m >= b.i_m;}
-        bool operator<=(const iterator& b)const noexcept{return i_m <= b.i_m;}
-        bool operator>(const iterator& b)const noexcept{return !(*this <= b);}
-        bool operator<(const iterator& b)const noexcept{return !(*this >= b);}
-
-        iterator operator++(int)
-            noexcept
-        {
-            auto res = *this;
-            increment(i_m, 1);
-            return res;
-        }
-
-        iterator& operator++()
-            noexcept
-        {
-            m_m.increment(i_m, 1);
-            return *this;
-        }
-
-        iterator operator--(int)
-            noexcept
-        {
-            auto res = *this;
-            decrement(i_m, 1);
-            return res;
-        }
-
-        iterator& operator--()
-            noexcept
-        {
-            decrement(i_m, 1);
-            return *this;
-        }
+    mesh_point operator()(const Arr& x) const noexcept {return mesh_point(this, x);}
 
 
-        iterator& operator+=(const size_t n)
-            noexcept
-        {
-            increment(i_m, n);
-            return *this;
-        }
-
-        iterator& operator-=(const size_t n)
-            noexcept
-        {
-            decrement(i_m, n);
-            return *this;
-        }
-
-        iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
-        iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
-        size_t operator-(const iterator& it)
-            const noexcept
-        {
-            size_t diff = 0;
-            Scalar offset = 1;
-            for(auto j = 0; j < Dim; j++){
-                diff += (i_m[j] - it.i_m[j])*offset;
-                offset = 1;
-                for(auto k = 0; k < j; k++){
-                    offset *= N_m[k];
-                }
-            }
-            return this->i_m - it.i_m;
-        }
-
-        Arr operator[](const size_t n)const noexcept{return m_m.r(n);}
-    };
     /*!*************************************************************************
     * Class for enabling iteration through a mesh, constant version
     ***************************************************************************/
     class const_iterator{
     private:
-        const Mesh_base& m_m;
+        const Mesh_base* m_m;
         Arr i_m;
+        const_iterator() = default;
     public:
+        typedef const Arr difference_type;
+        typedef const mesh_point value_type;
+        typedef const mesh_point reference;
+        typedef std::unique_ptr<const mesh_point> pointer;
         typedef std::random_access_iterator_tag iterator_category;
-        const_iterator() = delete;
+
         const_iterator(const const_iterator&) = default;
         const_iterator(const_iterator&&) = default;
-        const_iterator(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i){}
+        const_iterator(const Mesh_base* m, const Arr i) : m_m(m), i_m(i){}
         ~const_iterator() = default;
         const_iterator& operator=(const const_iterator&) = default;
         const_iterator& operator=(const_iterator&&) = default;
 
-        Arr operator*() noexcept {return mesh_point(m_m, i_m);}
+        reference operator*() noexcept {return mesh_point(m_m, i_m);}
+        pointer operator->()
+            noexcept
+        {
+#if __cplusplus >= 201402L
+            return std::make_unique<mesh_point>(m_m, i_m);
+#else
+            return std::unique_ptr<mesh_point>(new mesh_point{m_m, i_m});
+#endif
+        }
+        reference operator[](const difference_type n) {return *(*this + n);}
 
         bool operator==(const const_iterator& b)const noexcept{return i_m == b.i_m;}
         bool operator!=(const const_iterator& b)const noexcept{return !(*this == b);}
@@ -411,14 +407,14 @@ public:
             noexcept
         {
             auto res = *this;
-            increment(i_m, 1);
+            m_m->increment(i_m, 1);
             return res;
         }
 
         const_iterator& operator++()
             noexcept
         {
-            increment(i_m, 1);
+            m_m->increment(i_m, 1);
             return *this;
         }
 
@@ -426,34 +422,36 @@ public:
             noexcept
         {
             auto res = *this;
-            decrement(i_m, 1);
+            m_m->decrement(i_m, 1);
             return res;
         }
 
         const_iterator& operator--()
             noexcept
         {
-            decrement(i_m, 1);
+            m_m->decrement(i_m, 1);
             return *this;
         }
 
-        const_iterator& operator+=(const size_t n)
+        const_iterator& operator+=(const difference_type n)
             noexcept
         {
-            increment(i_m, n);
+            m_m->increment(i_m, n);
             return *this;
         }
 
-        const_iterator& operator-=(const size_t n)
+        const_iterator& operator-=(const difference_type n)
             noexcept
         {
-            decrement(i_m, n);
+            m_m->decrement(i_m, n);
             return *this;
         }
 
-        const_iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
-        const_iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
-        size_t operator-(const const_iterator& it)
+        const_iterator operator+(const difference_type n)const noexcept{auto res = *this; return (res += n);}
+        friend const_iterator operator+(const difference_type n, const const_iterator& it)
+         noexcept { return it + n; }
+        const_iterator operator-(const difference_type n)const noexcept{auto res = *this; return (res -= n);}
+        difference_type operator-(const const_iterator& it)
             const noexcept
         {
             size_t diff = 0;
@@ -468,70 +466,51 @@ public:
             return this->i_m - it.i_m;
         }
 
-        const Arr operator[](const size_t n)const noexcept{return m_m.r(n);}
     };
 
-    /*!*************************************************************************
-    * Class for enabling reverse iteration through a mesh
-    ***************************************************************************/
-    typedef std::reverse_iterator<iterator> reverse_iterator;
     /*!*************************************************************************
     * Class for enabling reverse iteration through a mesh, constant version
     ***************************************************************************/
     typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
-    iterator begin()
-        noexcept
-    {
-        Arr i;
-        i.fill(0);
-        return iterator(*this, i);
-    }
     const_iterator begin()
         const noexcept
     {
         Arr i;
         i.fill(0);
-        return const_iterator(*this, i);
+        return const_iterator(this, i);
     }
+
     const_iterator cbegin()
         const noexcept
     {
         Arr i;
         i.fill(0);
-        return const_iterator(*this, i);
+        return const_iterator(this, i);
     }
-    iterator end()
-        noexcept
-    {
-        Arr i;
-        i.fill(0);
-        i.back() = N_m.back();
-        return iterator(*this, i);
-    }
+
     const_iterator end()
         const noexcept
     {
         Arr i;
         i.fill(0);
         i.back() = N_m.back();
-        return const_iterator(*this, i);
+        return const_iterator(this, i);
     }
+
     const_iterator cend()
         const  noexcept
     {
         Arr i;
         i.fill(0);
         i.back() = N_m.back();
-        return const_iterator(*this, i);
+        return const_iterator(this, i);
     }
 
-    reverse_iterator rbegin() noexcept{return reverse_iterator(this->begin());}
-    const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->begin());}
-    const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->begin());}
-    reverse_iterator rend() noexcept{return reverse_iterator(this->end());}
-    const_reverse_iterator rend() const noexcept{return const_reverse_iterator(this->end());}
-    const_reverse_iterator crend() const noexcept{return const_reverse_iterator(this->cend());}
+    const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->end());}
+    const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->cend());}
+    const_reverse_iterator rend() const noexcept{return const_reverse_iterator(this->begin());}
+    const_reverse_iterator crend() const noexcept{return const_reverse_iterator(this->cbegin());}
 
 };
 
@@ -539,7 +518,7 @@ public:
 * 1D template specialization, instead of using arrays we can use scalar values.
 *******************************************************************************/
 #if __cplusplus >= 202002L
-template<floating_point Scalar>
+template<arithmetic Scalar>
 #else
 template<class Scalar>
 #endif
@@ -588,7 +567,14 @@ public:
     ***************************************************************************/
     virtual Scalar dr(const Scalar& x) const noexcept = 0;
 
-    Scalar operator()(const Scalar& x) const noexcept {return r(x);}
+    /*!*************************************************************************
+    * Virtual function returning $\frac{d^2r}{dx^2}$.
+    * To be overwritten in subclasses.
+    ***************************************************************************/
+    virtual Scalar d2r(const Scalar& x) const noexcept = 0;
+
+    virtual Scalar d3r(const Scalar& x) const noexcept = 0;
+
 
     //! Get all positions
     /*!*************************************************************************
@@ -599,7 +585,7 @@ public:
     {
         std::vector<Scalar> res;
         for(size_t i = 0; i < this->N_m; i++){
-            res.push_back(this->r(i));
+            res.push_back(this->r(static_cast<Scalar>(i)));
         }
         return res;
     }
@@ -632,22 +618,59 @@ public:
         return res;
     }
 
+    //! Get all second derivatives
+    /*!*************************************************************************
+    * Returns a vector containing $\frac{d^2r}{dx^2}$ for all the points in the mesh.
+    ***************************************************************************/
+    std::vector<Scalar> d2r()
+        const noexcept
+    {
+        std::vector<Scalar> res;
+        for(size_t i = 0; i < this->N_m; i++){
+            res.push_back(this->d2r(i));
+        }
+        return res;
+    }
+
+    std::vector<Scalar> d3r()
+        const noexcept
+    {
+        std::vector<Scalar> res;
+        for(size_t i = 0; i < this->N_m; i++){
+            res.push_back(this->d3r(i));
+        }
+        return res;
+    }
+
+
     //! Get mesh dimensions
     /*!*************************************************************************
     * Returns the number of mesh points.
     ***************************************************************************/
-    size_t dim() const noexcept { return N_m; }
+    size_t dim() const noexcept { return 1; }
+    size_t size() const noexcept {return N_m;}
 
+
+    bool operator==(const Mesh_base& other) const
+    {
+        return (this->alpha_m == other.alpha_m &&
+                this->beta_m == other.beta_m &&
+                this->gamma_m == other.gamma_m);
+    }
+    bool operator!=(const Mesh_base& other) const
+    {
+        return !(*this == other);
+    }
     /*!*************************************************************************
     * Class for representing a generic point in a 1D mesh.
     ***************************************************************************/
     class mesh_point {
     private:
-        const Mesh_base& m_m;
-        Scalar i_m;
+        const Mesh_base* m_m;
+        long int i_m;
+        mesh_point() = default;
     public:
-        mesh_point(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i) {}
-        mesh_point() = delete;
+        mesh_point(const Mesh_base* m, const long int i) : m_m(m), i_m(i) {}
         mesh_point(const mesh_point&) = default;
         mesh_point(mesh_point&&) = default;
         ~mesh_point() = default;
@@ -655,69 +678,57 @@ public:
         mesh_point& operator=(const mesh_point&) = default;
         mesh_point& operator=(mesh_point&&) = default;
 
-        Scalar r() const noexcept { return m_m.r(i_m);}
-        Scalar r2() const noexcept { return m_m.r(i_m);}
-        Scalar dr() const noexcept { return m_m.r(i_m);}
+        Scalar r() const noexcept { return m_m->r(i_m);}
+        Scalar r2() const noexcept { return m_m->r2(i_m);}
+        Scalar dr() const noexcept { return m_m->dr(i_m);}
+        Scalar d2r() const noexcept { return m_m->d2r(i_m);}
+        Scalar d3r() const noexcept { return m_m->d3r(i_m);}
+
+        long int i() const noexcept {return i_m;}
+
+        bool operator==(const mesh_point& other)
+        {
+            return (this->i_m == other->i_m &&
+                    this->m_m == other->m_m);
+        }
+        bool operator!=(const mesh_point& other)
+        {
+            return !(*this == other);
+        }
     };
 
-    /*!*************************************************************************
-    * Class for enabling iteration through a mesh
-    ***************************************************************************/
-    class iterator{
-    private:
-        const Mesh_base& m_m;
-        Scalar i_m;
-    public:
-        typedef std::random_access_iterator_tag iterator_category;
-        iterator() = delete;
-        iterator(const iterator&) = default;
-        iterator(iterator&&) = default;
-        iterator(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i){}
-        ~iterator() = default;
-        iterator& operator=(const iterator&) = default;
-        iterator& operator=(iterator&&) = default;
-
-        mesh_point operator*(){return mesh_point(m_m, i_m);}
-
-        bool operator==(const iterator& b)const noexcept{return i_m == b.i_m;}
-        bool operator!=(const iterator& b)const noexcept{return !(*this == b);}
-        bool operator>=(const iterator& b)const noexcept{return i_m >= b.i_m;}
-        bool operator<=(const iterator& b)const noexcept{return i_m <= b.i_m;}
-        bool operator>(const iterator& b)const noexcept{return !(*this <= b);}
-        bool operator<(const iterator& b)const noexcept{return !(*this >= b);}
-
-        iterator operator++(int) noexcept{auto res = *this; i_m++; return res;}
-        iterator& operator++() noexcept{i_m++; return *this;}
-        iterator operator--(int) noexcept{auto res = *this; i_m--; return res;}
-        iterator& operator--() noexcept{i_m--; return *this;}
-
-        iterator& operator+=(const size_t n) noexcept{i_m += n; return *this;}
-        iterator& operator-=(const size_t n) noexcept{i_m -= n; return *this;}
-
-        iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
-        iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
-        size_t operator-(const iterator& it)const noexcept{return this->i_m - it.i_m;}
-
-        Scalar operator[](const size_t n)const noexcept{return m_m.r(n);}
-    };
     /*!*************************************************************************
     * Class for enabling iteration through a mesh, constant version
     ***************************************************************************/
     class const_iterator{
     private:
-        const Mesh_base& m_m;
-        Scalar i_m;
+        const Mesh_base* m_m;
+        size_t i_m;
+        const_iterator() = default;
     public:
+        typedef const long int difference_type;
+        typedef const mesh_point value_type;
+        typedef const mesh_point reference;
+        typedef std::unique_ptr<const mesh_point> pointer;
         typedef std::random_access_iterator_tag iterator_category;
-        const_iterator() = delete;
+
         const_iterator(const const_iterator&) = default;
         const_iterator(const_iterator&&) = default;
-        const_iterator(const Mesh_base& m, const Scalar i) : m_m(m), i_m(i){}
+        const_iterator(const Mesh_base* m, const Scalar i) : m_m(m), i_m(i){}
         ~const_iterator() = default;
         const_iterator& operator=(const const_iterator&) = default;
         const_iterator& operator=(const_iterator&&) = default;
 
-        mesh_point operator*(){return mesh_point(m_m, i_m);}
+        reference operator*(){return mesh_point(m_m, i_m);}
+        pointer operator->()
+        {
+#if __cplusplus >= 201402L
+            return std::make_unique<mesh_point>(m_m, i_m);
+#else
+            return std::unique_ptr<mesh_point>(new mesh_point{m_m, i_m});
+#endif
+        }
+        reference operator[](const difference_type n){return *(*this + n);}
 
         bool operator==(const const_iterator& b)const noexcept{return i_m == b.i_m;}
         bool operator!=(const const_iterator& b)const noexcept{return !(*this == b);}
@@ -731,38 +742,34 @@ public:
         const_iterator operator--(int) noexcept{auto res = *this; i_m--; return res;}
         const_iterator& operator--() noexcept{i_m--; return *this;}
 
-        const_iterator& operator+=(const size_t n) noexcept{i_m += n; return *this;}
-        const_iterator& operator-=(const size_t n) noexcept{i_m -= n; return *this;}
+        const_iterator& operator+=(const difference_type n) noexcept{i_m += n; return *this;}
+        const_iterator& operator-=(const difference_type n) noexcept{i_m -= n; return *this;}
 
-        const_iterator operator+(const size_t n)const noexcept{auto res = *this; return (res += n);}
-        const_iterator operator-(const size_t n)const noexcept{auto res = *this; return (res -= n);}
-        size_t operator-(const const_iterator& it)const noexcept{return this->i_m - it.i_m;}
-
-        const Scalar operator[](const size_t n)const noexcept{return m_m.r(n);}
+        const_iterator operator+(const difference_type n)const noexcept{auto res = *this; return (res += n);}
+        friend const_iterator operator+(const difference_type n, const_iterator it)
+         noexcept { return it + n; }
+        const_iterator operator-(const difference_type n)const noexcept{auto res = *this; return (res -= n);}
+        difference_type operator-(const const_iterator& it)const noexcept{return (this->i_m - it.i_m);}
     };
 
-    /*!*************************************************************************
-    * Class for enabling reverse iteration through a mesh
-    ***************************************************************************/
-    typedef std::reverse_iterator<iterator> reverse_iterator;
     /*!*************************************************************************
     * Class for enabling reverse iteration through a mesh, constant version
     ***************************************************************************/
     typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
-    iterator begin() noexcept{return iterator(*this, 0);}
-    const_iterator begin() const noexcept{return const_iterator(*this, 0);}
-    const_iterator cbegin() const noexcept{return const_iterator(*this, 0);}
-    iterator end() noexcept{return iterator(*this, N_m);}
-    const_iterator end() const noexcept{return const_iterator(*this, N_m);}
-    const_iterator cend() const  noexcept{return const_iterator(*this, N_m);}
+    mesh_point operator()(const Scalar& x) const noexcept {return mesh_point{this, x};}
 
-    reverse_iterator rbegin() noexcept{return reverse_iterator(this->begin());}
-    const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->begin());}
-    const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->begin());}
-    reverse_iterator rend() noexcept{return reverse_iterator(this->end());}
-    const_reverse_iterator rend() const noexcept{return const_reverse_iterator(this->end());}
-    const_reverse_iterator crend() const noexcept{return const_reverse_iterator(this->cend());}
+    const_iterator begin() const noexcept{return const_iterator(this, 0);}
+    const_iterator cbegin() const noexcept{return const_iterator(this, 0);}
+
+    const_iterator end() const noexcept{return const_iterator(this, static_cast<Scalar>(N_m));}
+    const_iterator cend() const  noexcept{return const_iterator(this, static_cast<Scalar>(N_m));}
+
+    const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->end());}
+    const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->end());}
+
+    const_reverse_iterator rend() const noexcept{return const_reverse_iterator(this->begin());}
+    const_reverse_iterator crend() const noexcept{return const_reverse_iterator(this->cbegin());}
 };
 
 /*!*************************************************************************
@@ -786,10 +793,10 @@ public:
     Linear_mesh(const Arr& R_min, const Arr& R_max, const std::array<size_t, D>& N)
      noexcept
     : Mesh_base<D, Scalar>(
-        [this] (const Arr& R_min, const Arr& R_max,  const std::array<size_t, D>& N)
+        [this] (const Arr& r_min, const Arr& r_max,  const std::array<size_t, D>& n_steps)
         {
             Arr res;
-            auto z3 = this->zip3(R_min,  R_max, N);
+            auto z3 = this->zip3(r_min,  r_max, n_steps);
             std::transform(std::begin(z3), std::end(z3), std::begin(res),
                 [] (std::tuple<Scalar, Scalar, size_t> ti)
                 {
@@ -889,6 +896,23 @@ public:
     {
         return this->alpha_m;
     }
+
+    Arr d2r(const Arr& x)
+        const noexcept override
+    {
+        Arr res;
+        res.fill(0);
+        return res;
+    }
+
+    Arr d3r(const Arr& x)
+        const noexcept override
+    {
+        Arr res;
+        res.fill(0);
+        return res;
+    }
+
 };
 
 /*!*****************************************************************************
@@ -910,7 +934,7 @@ public:
     ***************************************************************************/
     Linear_mesh(const Scalar R_min, const Scalar R_max, const size_t N)
      noexcept
-    : Mesh_base<1, Scalar>((R_max - R_min)/(N - 1), 0, R_min, N)
+    : Mesh_base<1, Scalar>((R_max - R_min)/static_cast<double>(N - 1), 0, R_min, N)
     {}
 
     ~Linear_mesh() = default;
@@ -921,10 +945,11 @@ public:
     Linear_mesh& operator=(const Linear_mesh&) = default;
     Linear_mesh& operator=(Linear_mesh&&) = default;
 
+/*
     using Mesh_base<1, Scalar>::r;
     using Mesh_base<1, Scalar>::r2;
     using Mesh_base<1, Scalar>::dr;
-
+*/
     //! Get position at coordinate
     /*!*************************************************************************
     * This function evaluates the mesh at the coordinate supplied, returning the
@@ -961,8 +986,21 @@ public:
     Scalar dr(const Scalar& x)
         const noexcept override
     {
-        return this->alpha_m;
+        return this->alpha_m + 0*x;
     }
+
+    Scalar d2r(const Scalar& x)
+        const noexcept override
+    {
+        return 0*x;
+    }
+
+    Scalar d3r(const Scalar& x)
+        const noexcept override
+    {
+        return 0*x;
+    }
+
 };
 
 
@@ -972,9 +1010,10 @@ public:
 *******************************************************************************/
 template<size_t D, class Scalar = double>
 class Quadratic_mesh : public Mesh_base<D, Scalar> {
+private:
+    Quadratic_mesh() = default;
 public:
     using Arr = std::array<Scalar, D>;
-    Quadratic_mesh() = delete;
     //! Constructor
     /*!*************************************************************************
     * Construct a quadratic mesh from two parameters, and the number of mesh
@@ -986,10 +1025,10 @@ public:
     Quadratic_mesh(const Arr& R_min, const Arr& R_max, const std::array<size_t, D>& N)
      noexcept
     : Mesh_base<D, Scalar>(
-        [this] (const Arr& R_min, const Arr& R_max, const std::array<size_t, D>& N)
+        [this] (const Arr& r_min, const Arr& r_max, const std::array<size_t, D>& n_steps)
         {
             Arr res;
-            auto z3 = this->zip3(R_min, R_max, N);
+            auto z3 = this->zip3(r_min, r_max, n_steps);
             std::transform(std::begin(z3), std::end(z3), std::begin(res),
                 [] (const std::tuple<Scalar, Scalar, size_t>& ti)
                 {
@@ -1104,6 +1143,26 @@ public:
 #endif
         return res;
     }
+
+    Arr d2r(const Arr& x)
+        const noexcept override
+    {
+        Arr res;
+        std::transform(std::begin(this->alpha_m), std::end(this->alpha_m), std::begin(res),
+            [](const double a)
+            {
+                return 2*a;
+            });
+        return res;
+    }
+    Arr d3r(const Arr& x)
+        const noexcept override
+    {
+        Arr res;
+        res.fill(0);
+        return res;
+    }
+
 };
 
 /*!*****************************************************************************
@@ -1111,8 +1170,9 @@ public:
 *******************************************************************************/
 template<class Scalar>
 class Quadratic_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
+private:
+    Quadratic_mesh() = default;
 public:
-    Quadratic_mesh() = delete;
     //! Constructor
     /*!*************************************************************************
     * Construct a 1D-quadratic mesh from two parameters, and the number of mesh
@@ -1133,6 +1193,10 @@ public:
 
     Quadratic_mesh& operator=(const Quadratic_mesh&) = default;
     Quadratic_mesh& operator=(Quadratic_mesh&&) = default;
+
+    using Mesh_base<1, Scalar>::r;
+    using Mesh_base<1, Scalar>::r2;
+    using Mesh_base<1, Scalar>::dr;
 
     //! Get position at coordinates
     /*!*************************************************************************
@@ -1173,6 +1237,19 @@ public:
     {
         return 2*this->alpha_m*sgn(x)*x;
     }
+
+    Scalar d2r(const Scalar& x)
+        const noexcept override
+    {
+        return 2*this->alpha_m + 0*x;
+    }
+
+    Scalar d3r(const Scalar& x)
+        const noexcept override
+    {
+        return 0*x;
+    }
+
 };
 
 /*!*****************************************************************************
@@ -1181,9 +1258,10 @@ public:
 *******************************************************************************/
 template<size_t D, class Scalar = double>
 class Exponential_mesh : public Mesh_base<D, Scalar> {
+private:
+    Exponential_mesh() = default;
 public:
     using Arr = std::array<Scalar, D>;
-    Exponential_mesh() = delete;
     //! Constructor
     /*!*************************************************************************
     * Construct a exponential mesh from three parameters, and the number of mesh
@@ -1196,10 +1274,10 @@ public:
     Exponential_mesh(const Arr& R_min, const Arr& R_max, const Arr& beta, const std::array<size_t, D>& N)
      noexcept
     : Mesh_base<D, Scalar>(
-        [this] (const Arr& R_min, const Arr& R_max, const Arr& beta, const std::array<size_t, D>& N)
+        [this] (const Arr& r_min, const Arr& r_max, const Arr& beta_val, const std::array<size_t, D>& n_steps)
         {
             Arr res;
-            auto z4 = this->zip4(R_min, R_max, beta, N);
+            auto z4 = this->zip4(r_min, r_max, beta_val, n_steps);
             std::transform(std::begin(z4), std::end(z4), std::begin(res),
                 [] (const std::tuple<Scalar, Scalar, Scalar, size_t> ti)
                 {
@@ -1324,6 +1402,86 @@ public:
 #endif
         return res;
     }
+
+    Arr d2r(const Arr& x)
+        const noexcept override
+    {
+        Arr x_abs;
+        std::transform(std::begin(x), std::end(x), std::begin(x_abs),
+            [] (const Scalar& xi)
+            {
+                return sgn(xi)*xi;
+            }
+        );
+        Arr r = this->r(x_abs);
+
+        Arr res;
+#if __cplusplus >= 202002L
+        std::transform(std::begin(r), std::end(r), std::begin(this->parameters()), std::begin(res),
+            [] (const Scalar& ri, const std::tuple<Scalar, Scalar, Scalar>& ti)
+            {
+                auto [a, b, c] = ti;
+                return b*b*(ri + a - c);
+            });
+#else
+        auto z4 = this->zip4(r, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+            [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
+            {
+#if __cplusplus >= 201703L
+                auto [ri, a, b, c] = ti;
+#else
+                auto ri = std::get<0>(ti);
+                auto a = std::get<1>(ti);
+                auto b = std::get<2>(ti);
+                auto c = std::get<3>(ti);
+#endif
+                return b*b*b*(ri + a - c);
+            });
+#endif
+        return res;
+    }
+
+    Arr d3r(const Arr& x)
+        const noexcept override
+    {
+        Arr x_abs;
+        std::transform(std::begin(x), std::end(x), std::begin(x_abs),
+            [] (const Scalar& xi)
+            {
+                return sgn(xi)*xi;
+            }
+        );
+        Arr r = this->r(x_abs);
+
+        Arr res;
+#if __cplusplus >= 202002L
+        std::transform(std::begin(r), std::end(r), std::begin(this->parameters()), std::begin(res),
+            [] (const Scalar& ri, const std::tuple<Scalar, Scalar, Scalar>& ti)
+            {
+                auto [a, b, c] = ti;
+                return b*b*b*(ri + a - c);
+            });
+#else
+        auto z4 = this->zip4(r, this->parameters());
+        std::transform(std::begin(z4), std::end(z4), std::begin(res),
+            [] (const std::tuple<Scalar, Scalar, Scalar, Scalar>& ti)
+            {
+#if __cplusplus >= 201703L
+                auto [ri, a, b, c] = ti;
+#else
+                auto ri = std::get<0>(ti);
+                auto a = std::get<1>(ti);
+                auto b = std::get<2>(ti);
+                auto c = std::get<3>(ti);
+#endif
+                return b*b*b*(ri + a - c);
+            });
+#endif
+        return res;
+
+    }
+
 };
 
 /*!*****************************************************************************
@@ -1331,8 +1489,9 @@ public:
 *******************************************************************************/
 template<class Scalar>
 class Exponential_mesh<1, Scalar> : public Mesh_base<1, Scalar> {
+private:
+    Exponential_mesh() = default;
 public:
-    Exponential_mesh() = delete;
     //! Constructor
     /*!*************************************************************************
     * Construct a exponential mesh from three parameters, and the number of mesh
@@ -1344,7 +1503,7 @@ public:
     ***************************************************************************/
     Exponential_mesh(const Scalar R_min, const Scalar R_max, const Scalar beta, const size_t N)
      noexcept
-    : Mesh_base<1, Scalar>((R_max - R_min)/std::expm1(beta*(N-1)), beta, R_min, N)
+    : Mesh_base<1, Scalar>((R_max - R_min)/std::expm1(beta*static_cast<double>(N-1)), beta, R_min, N)
     {}
 
     ~Exponential_mesh() = default;
@@ -1354,6 +1513,10 @@ public:
 
     Exponential_mesh& operator=(const Exponential_mesh&) = default;
     Exponential_mesh& operator=(Exponential_mesh&&) = default;
+
+    using Mesh_base<1, Scalar>::r;
+    using Mesh_base<1, Scalar>::r2;
+    using Mesh_base<1, Scalar>::dr;
 
     //! Get position at coordinates
     /*!*************************************************************************
@@ -1366,7 +1529,7 @@ public:
         const noexcept override
     {
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
-        return sgn(x)*a*std::expm1(sgn(x)*b*x) + c;
+        return sgn(x)*a*std::expm1(std::abs(b*x)) + c;
     }
 
     //! Get position squared at coordinate
@@ -1379,7 +1542,7 @@ public:
     Scalar r2(const Scalar& x)
         const noexcept override
     {
-        return std::pow(this->r(x), 2);
+        return this->r(x)*this->r(x);
     }
 
     //! Get step size at coordinates
@@ -1397,6 +1560,21 @@ public:
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
         return b*(this->r(sgn(x)*x) + a - c);
     }
+
+    Scalar d2r(const Scalar& x)
+        const noexcept override
+    {
+        Scalar b = this->beta_m;
+        return b*this->dr(x);
+    }
+
+    Scalar d3r(const Scalar& x)
+        const noexcept override
+    {
+        Scalar b = this->beta_m;
+        return b*this->d2r(x);
+    }
+
 };
 
 /*!*****************************************************************************

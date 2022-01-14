@@ -5,9 +5,10 @@
 #error The numerical-mesh-integration library requires at least c++11!
 #endif
 
-#include <numerical-mesh.h>
+#include <numerical-mesh/numerical-mesh.h>
 #include <functional>
 #include <type_traits>
+
 
 /*******************************************************************************
 * The __cplusplus macro is used to determine which c++ standard is used for the*
@@ -47,7 +48,7 @@ template<std::floating_point Scalar>
 template<class Scalar>
 #endif
 Scalar trapezoidal_integral(const Mesh_base<1, Scalar>& mesh,
-    const std::function<Scalar(const Scalar&)>& integrand)
+    const std::function<Scalar(const typename Mesh_base<1, Scalar>::mesh_point&)>& integrand)
     noexcept
 {
     return trapezoidal_integral<Scalar>(mesh, 0., static_cast<Scalar>(mesh.size() - 1), integrand, 1);
@@ -73,7 +74,7 @@ template<std::floating_point Scalar>
 template<class Scalar>
 #endif
 Scalar simpson_integral(const Mesh_base<1, Scalar>& mesh,
-    const std::function<Scalar(const Scalar&)>& integrand)
+    const std::function<Scalar(const typename Mesh_base<1, Scalar>::mesh_point&)>& integrand)
     noexcept
 {
     return simpson_integral<Scalar>(mesh, 0., static_cast<Scalar>(mesh.size() - 1), integrand, 1);
@@ -102,7 +103,7 @@ template<std::floating_point Scalar, size_t K = 3>
 template<class Scalar, size_t K = 3>
 #endif
 Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh,
-    const std::function<Scalar(const Scalar&)>& integrand)
+    const std::function<Scalar(const typename Mesh_base<1, Scalar>::mesh_point&)>& integrand)
     noexcept
 {
     return corrected_trapezoidal_integral<Scalar, K>(mesh, 0., static_cast<Scalar>(mesh.size() - 1), integrand, 1);
@@ -142,15 +143,15 @@ template<std::floating_point Scalar>
 template<class Scalar>
 #endif
 Scalar trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
-    const Scalar& x1, const std::function<Scalar(const Scalar&)>& integrand, const Scalar& step = 1)
+    const Scalar& x1, const std::function<Scalar(const typename Mesh_base<1, Scalar>::mesh_point&)>& integrand, const Scalar& step = 1)
     noexcept
 {
     Scalar res = 0;
     Scalar start = std::min(x0, x1), end = std::max(x0, x1);
 
-    for(Scalar x = start + step; x <= end; x += step){
-        res +=  integrand(x - step)*mesh.dr(x - step) +
-                integrand(x)*mesh.dr(x);
+    for(auto p = mesh.begin() + start + step; p->i() <= end; p += step){
+        res +=  integrand(*(p - step))*(p - step)->dr() +
+                integrand(*p)*p->dr();
     }
 
     return res*step/2;
@@ -179,15 +180,15 @@ template<std::floating_point Scalar>
 template<class Scalar>
 #endif
 Scalar simpson_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
-    const Scalar& x1, const std::function<Scalar(const Scalar&)>& integrand, const Scalar& step = 1)
+    const Scalar& x1, const std::function<Scalar(const typename Mesh_base<1, Scalar>::mesh_point&)>& integrand, const Scalar& step = 1)
     noexcept
 {
     Scalar res = 0;
     Scalar start = std::min(x0, x1), end = std::max(x0, x1);
-    for(Scalar x = start + step; x <= (end - start)/2; x += step){
-        res +=  integrand(2*x - 2*step)*mesh.dr(2*x - 2*step)
-                 + 4*integrand(2*x - step)*mesh.dr(2*x - step)
-                 + integrand(2*x)*mesh.dr(2*x);
+    for(auto p = mesh.begin() + 2*(start + step); p->i() <= end; p += 2*step){
+        res +=  integrand(*(p - 2*step))*(p - 2*step)->dr()
+                 + 4*integrand(*(p - step))*(p - step)->dr()
+                 + integrand(*p)*(p)->dr();
     }
     return res*step/3;
 }
@@ -218,7 +219,7 @@ template<std::floating_point Scalar, size_t K = 3>
 template<class Scalar, size_t K = 3>
 #endif
 Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Scalar& x0,
-    const Scalar& x1, const std::function<Scalar(const Scalar&)>& integrand, const Scalar& step = 1)
+    const Scalar& x1, const std::function<Scalar(const typename Mesh_base<1, Scalar>::mesh_point&)>& integrand, const Scalar& step = 1)
     noexcept
 {
     Scalar start = std::min(x0, x1), end = std::max(x0, x1);
@@ -229,11 +230,13 @@ Scalar corrected_trapezoidal_integral(const Mesh_base<1, Scalar>& mesh, const Sc
     auto weights = end_point_corrections<Scalar, K>();
     Scalar res = 0;
     for(Scalar i = 0; i < K; i++){
-        res += weights[i]*integrand(start + i*step)*mesh.dr(start + i*step);
-        res += weights[i]*integrand(end - i*step)*mesh.dr(end - i*step);
+        auto left = mesh.begin() + start + i*step;
+        res += weights[i]*integrand(*left)*(left)->dr();
+        auto right = mesh.begin() + end - i*step;
+        res += weights[i]*integrand(*right)*(right)->dr();
     }
-    for(Scalar x = start + K*step; x <= end - K*step; x += step){
-        res += integrand(x)*mesh.dr(x);
+    for(auto p = mesh.begin() + start + K*step; p->i() <= end - K*step; p += step){
+        res += integrand(*p)*(p)->dr();
     }
     return res*step;
 }

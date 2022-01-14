@@ -459,9 +459,9 @@ public:
             for(auto j = 0; j < Dim; j++){
                 diff += (i_m[j] - it.i_m[j])*offset;
                 offset = 1;
-                for(auto k = 0; k < j; k++){
-                    offset *= N_m[k];
-                }
+                // for(auto k = 0; k < j; k++){
+                    // offset *= N_m[k];
+                // }
             }
             return this->i_m - it.i_m;
         }
@@ -580,7 +580,7 @@ public:
     /*!*************************************************************************
     * Returns a vector containing all positions in the mesh.
     ***************************************************************************/
-    std::vector<Scalar> r()
+    virtual std::vector<Scalar> r()
         const noexcept
     {
         std::vector<Scalar> res;
@@ -668,9 +668,10 @@ public:
     private:
         const Mesh_base* m_m;
         long int i_m;
+        Scalar offset_m;
         mesh_point() = default;
     public:
-        mesh_point(const Mesh_base* m, const long int i) : m_m(m), i_m(i) {}
+        mesh_point(const Mesh_base* m, const Scalar i) : m_m(m), i_m(static_cast<long int>(i)), offset_m(static_cast<Scalar>(i - i_m)) {}
         mesh_point(const mesh_point&) = default;
         mesh_point(mesh_point&&) = default;
         ~mesh_point() = default;
@@ -678,11 +679,11 @@ public:
         mesh_point& operator=(const mesh_point&) = default;
         mesh_point& operator=(mesh_point&&) = default;
 
-        Scalar r() const noexcept { return m_m->r(i_m);}
-        Scalar r2() const noexcept { return m_m->r2(i_m);}
-        Scalar dr() const noexcept { return m_m->dr(i_m);}
-        Scalar d2r() const noexcept { return m_m->d2r(i_m);}
-        Scalar d3r() const noexcept { return m_m->d3r(i_m);}
+        Scalar r() const noexcept { return m_m->r(static_cast<Scalar>(i_m) + offset_m);}
+        Scalar r2() const noexcept { return m_m->r2(static_cast<Scalar>(i_m) + offset_m);}
+        Scalar dr() const noexcept { return m_m->dr(static_cast<Scalar>(i_m) + offset_m);}
+        Scalar d2r() const noexcept { return m_m->d2r(static_cast<Scalar>(i_m) + offset_m);}
+        Scalar d3r() const noexcept { return m_m->d3r(static_cast<Scalar>(i_m) + offset_m);}
 
         long int i() const noexcept {return i_m;}
 
@@ -706,7 +707,7 @@ public:
         size_t i_m;
         const_iterator() = default;
     public:
-        typedef const long int difference_type;
+        typedef long int difference_type;
         typedef const mesh_point value_type;
         typedef const mesh_point reference;
         typedef std::unique_ptr<const mesh_point> pointer;
@@ -714,18 +715,18 @@ public:
 
         const_iterator(const const_iterator&) = default;
         const_iterator(const_iterator&&) = default;
-        const_iterator(const Mesh_base* m, const Scalar i) : m_m(m), i_m(i){}
+        const_iterator(const Mesh_base* m, const size_t i) : m_m(m), i_m(i){}
         ~const_iterator() = default;
         const_iterator& operator=(const const_iterator&) = default;
         const_iterator& operator=(const_iterator&&) = default;
 
-        reference operator*(){return mesh_point(m_m, i_m);}
+        reference operator*(){return mesh_point(m_m, static_cast<Scalar>(i_m));}
         pointer operator->()
         {
 #if __cplusplus >= 201402L
-            return std::make_unique<mesh_point>(m_m, i_m);
+            return std::make_unique<mesh_point>(m_m, static_cast<Scalar>(i_m));
 #else
-            return std::unique_ptr<mesh_point>(new mesh_point{m_m, i_m});
+            return std::unique_ptr<mesh_point>(new mesh_point{m_m, static_cast<Scalar>(i_m)});
 #endif
         }
         reference operator[](const difference_type n){return *(*this + n);}
@@ -737,19 +738,19 @@ public:
         bool operator>(const const_iterator& b)const noexcept{return !(*this <= b);}
         bool operator<(const const_iterator& b)const noexcept{return !(*this >= b);}
 
-        const_iterator operator++(int) noexcept{auto res = *this; i_m++; return res;}
-        const_iterator& operator++() noexcept{i_m++; return *this;}
-        const_iterator operator--(int) noexcept{auto res = *this; i_m--; return res;}
-        const_iterator& operator--() noexcept{i_m--; return *this;}
+        const_iterator operator++(int) noexcept {auto res = *this; i_m++; return res;}
+        const_iterator& operator++() noexcept {i_m++; return *this;}
+        const_iterator operator--(int) noexcept {auto res = *this; i_m--; return res;}
+        const_iterator& operator--() noexcept {i_m--; return *this;}
 
-        const_iterator& operator+=(const difference_type n) noexcept{i_m += n; return *this;}
-        const_iterator& operator-=(const difference_type n) noexcept{i_m -= n; return *this;}
+        const_iterator& operator+=(const difference_type n) noexcept {i_m += n; return *this;}
+        const_iterator& operator-=(const difference_type n) noexcept {i_m -= n; return *this;}
 
         const_iterator operator+(const difference_type n)const noexcept{auto res = *this; return (res += n);}
         friend const_iterator operator+(const difference_type n, const_iterator it)
          noexcept { return it + n; }
-        const_iterator operator-(const difference_type n)const noexcept{auto res = *this; return (res -= n);}
-        difference_type operator-(const const_iterator& it)const noexcept{return (this->i_m - it.i_m);}
+        const_iterator operator-(const difference_type n)const noexcept {auto res = *this; return (res -= n);}
+        difference_type operator-(const const_iterator& it)const noexcept {return (static_cast<difference_type>(this->i_m - it.i_m));}
     };
 
     /*!*************************************************************************
@@ -762,8 +763,8 @@ public:
     const_iterator begin() const noexcept{return const_iterator(this, 0);}
     const_iterator cbegin() const noexcept{return const_iterator(this, 0);}
 
-    const_iterator end() const noexcept{return const_iterator(this, static_cast<Scalar>(N_m));}
-    const_iterator cend() const  noexcept{return const_iterator(this, static_cast<Scalar>(N_m));}
+    const_iterator end() const noexcept{return const_iterator(this, N_m);}
+    const_iterator cend() const  noexcept{return const_iterator(this, N_m);}
 
     const_reverse_iterator rbegin() const noexcept{return const_reverse_iterator(this->end());}
     const_reverse_iterator crbegin() const noexcept{return const_reverse_iterator(this->end());}
@@ -945,11 +946,11 @@ public:
     Linear_mesh& operator=(const Linear_mesh&) = default;
     Linear_mesh& operator=(Linear_mesh&&) = default;
 
-/*
+
     using Mesh_base<1, Scalar>::r;
     using Mesh_base<1, Scalar>::r2;
     using Mesh_base<1, Scalar>::dr;
-*/
+
     //! Get position at coordinate
     /*!*************************************************************************
     * This function evaluates the mesh at the coordinate supplied, returning the
@@ -1529,7 +1530,8 @@ public:
         const noexcept override
     {
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
-        return sgn(x)*a*std::expm1(std::abs(b*x)) + c;
+        // return sgn(x)*a*std::expm1(std::abs(b*x)) + c;
+        return a*std::expm1(b*x) + c;
     }
 
     //! Get position squared at coordinate
@@ -1542,7 +1544,7 @@ public:
     Scalar r2(const Scalar& x)
         const noexcept override
     {
-        return this->r(x)*this->r(x);
+        return std::pow(this->r(x), 2);
     }
 
     //! Get step size at coordinates
@@ -1558,7 +1560,8 @@ public:
         const noexcept override
     {
         Scalar a = this->alpha_m, b = this->beta_m, c = this->gamma_m;
-        return b*(this->r(sgn(x)*x) + a - c);
+        // return b*(this->r(sgn(x)*x) + a - c);
+        return b*(this->r(x) + a - c);
     }
 
     Scalar d2r(const Scalar& x)
